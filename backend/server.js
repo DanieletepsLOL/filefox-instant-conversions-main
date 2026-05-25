@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -62,8 +62,8 @@ app.use("/api", generalLimiter);
 // ============================================================
 // 3. CONFIGURACIÓN
 // ============================================================
-const JWT_SECRET = process.env.JWT_SECRET || "filefox-secret-" + crypto.randomBytes(16).toString("hex");
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "filefox-refresh-" + crypto.randomBytes(16).toString("hex");
+const JWT_SECRET = process.env.JWT_SECRET || "filefox-secret-fijo-para-dev";
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "filefox-refresh-" + "filefox-secret-fijo-para-dev";
 const DATA_DIR = path.join(os.tmpdir(), "filefox-data");
 const dbPath = path.join(DATA_DIR, "filefox.db");
 
@@ -561,7 +561,7 @@ app.post("/api/auth/admin-login", authLimiter, (req, res) => {
     const adminJwt = jwt.sign(
       { role: "admin", email: "admin@filefoxadmins.com" },
       JWT_SECRET,
-      { expiresIn: "2h" }
+      { expiresIn: '24h' }
     );
 
     logActivity(null, "admin@filefoxadmins.com", "ADMIN_LOGIN", "Inicio de sesión de administrador", req.ip);
@@ -569,7 +569,7 @@ app.post("/api/auth/admin-login", authLimiter, (req, res) => {
     res.json({
       message: "Acceso de administrador concedido.",
       admin_token: adminJwt,
-      expires_in: 7200, // 2 horas en segundos
+      expires_in: 86400, // 24 horas en segundos
     });
   } catch (error) {
     console.error("Admin login error:", error);
