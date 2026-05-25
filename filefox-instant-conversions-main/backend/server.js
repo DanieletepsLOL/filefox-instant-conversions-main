@@ -12,6 +12,7 @@ import multer from "multer";
 import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { runMigrations } from "./migrate.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workRoot = path.join(os.tmpdir(), "filefox-tmp");
@@ -27,6 +28,10 @@ const app = express();
 // 1. SEGURIDAD: Helmet + CORS restringido
 // ============================================================
 app.use(helmet());
+
+// Confiar en el proxy (Vite) para obtener la IP real del cliente
+app.set("trust proxy", 1);
+
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:8080",
   credentials: true,
@@ -73,7 +78,7 @@ const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 
 // ============================================================
-// 4. ESQUEMA DE BASE DE DATOS
+// 4. ESQUEMA DE BASE DE DATOS + MIGRACIONES AUTOMÁTICAS
 // ============================================================
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -81,12 +86,19 @@ db.exec(`
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
-    email_verified BOOLEAN DEFAULT 0,
+    email_verified INTEGER DEFAULT 0,
     conversions_today INTEGER DEFAULT 0,
     last_conversion_date TEXT,
     total_conversions INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    updated_at TEXT,
+    last_login_ip TEXT,
+    last_login_at TEXT,
+    login_count INTEGER DEFAULT 0,
+    auth_provider TEXT DEFAULT 'email',
+    locale TEXT,
+    is_deleted INTEGER DEFAULT 0,
+    deleted_at TEXT
   )
 `);
 
@@ -111,6 +123,8 @@ db.exec(`
     source_format TEXT NOT NULL,
     target_format TEXT NOT NULL,
     status TEXT DEFAULT 'completed',
+    download_count INTEGER DEFAULT 0,
+    ip TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
@@ -129,16 +143,9 @@ db.exec(`
   )
 `);
 
-// Tabla para tokens de administración (generados desde el servidor)
-db.exec(`
-  CREATE TABLE IF NOT EXISTS admin_tokens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT UNIQUE NOT NULL,
-    description TEXT DEFAULT '',
-    active INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now'))
-  )
-`);
+// Ejecutar migraciones automáticas (columnas nuevas en tablas existentes)
+console.log("📦 Ejecutando migraciones...");
+runMigrations(db);
 
 // ============================================================
 // 5. FUNCIONES DE AYUDA
@@ -213,9 +220,13 @@ app.post("/api/auth/register", authLimiter, async (req, res) => {
       return res.status(409).json({ message: "Este correo ya está registrado." });
 
     const hash = await bcrypt.hash(password, 12);
-    const result = db.prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)").run(
-      name.trim(), email.trim().toLowerCase(), hash
-    );
+    const acceptLanguage = req.headers["accept-language"] || "";
+    const locale = acceptLanguage.split(",")[0]?.split("-")[0] || null;
+
+    const result = db.prepare(`
+      INSERT INTO users (name, email, password, locale, last_login_ip)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(name.trim(), email.trim().toLowerCase(), hash, locale, req.ip);
 
     const userId = result.lastInsertRowid;
     const user = { id: userId, email: email.trim().toLowerCase(), name: name.trim() };
@@ -248,6 +259,21 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
     const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email.trim().toLowerCase());
     if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ message: "Correo o contraseña incorrectos." });
+
+    // Detectar idioma del navegador desde el header Accept-Language
+    const acceptLanguage = req.headers["accept-language"] || "";
+    const locale = acceptLanguage.split(",")[0]?.split("-")[0] || null;
+
+    // Actualizar IP, locale, login count y fecha del último login
+    db.prepare(`
+      UPDATE users SET
+        last_login_ip = ?,
+        last_login_at = datetime('now'),
+        login_count = login_count + 1,
+        locale = COALESCE(?, locale),
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).run(req.ip, locale, user.id);
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user.id);
@@ -475,9 +501,9 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
     const userEmail = req.user?.email || "anónimo";
     const userId = req.user?.id || null;
     db.prepare(`
-      INSERT INTO conversions (user_id, user_email, original_name, original_size, source_format, target_format)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(userId, userEmail, uploadedFile.originalname, uploadedFile.size, originalExt.replace(".", ""), targetFormat);
+      INSERT INTO conversions (user_id, user_email, original_name, original_size, source_format, target_format, ip)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, userEmail, uploadedFile.originalname, uploadedFile.size, originalExt.replace(".", ""), targetFormat, req.ip);
 
     // Actualizar contador del usuario
     if (userId) {
@@ -654,6 +680,160 @@ app.get("/api/admin/stats", adminMiddleware, (req, res) => {
   } catch (error) {
     console.error("Error fetching stats:", error);
     res.status(500).json({ message: "Error al obtener estadísticas." });
+  }
+});
+
+// ============================================================
+// ADMIN - Gestión de usuarios
+// ============================================================
+
+// Listar usuarios (con búsqueda)
+app.get("/api/admin/users", adminMiddleware, (req, res) => {
+  try {
+    const { search, page = "1", limit = "50" } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    let whereClause = "WHERE u.is_deleted = 0";
+    const params = [];
+
+    if (search && search.trim()) {
+      const s = `%${search.trim()}%`;
+      whereClause = `WHERE (u.name LIKE ? OR u.email LIKE ? OR u.last_login_ip LIKE ?) AND u.is_deleted = 0`;
+      params.push(s, s, s);
+    }
+
+    const total = db.prepare(`SELECT COUNT(*) as count FROM users u ${whereClause}`).get(...params);
+    const users = db.prepare(`
+      SELECT
+        u.id, u.name, u.email, u.email_verified, u.auth_provider, u.locale,
+        u.total_conversions, u.conversions_today, u.last_conversion_date,
+        u.login_count, u.last_login_ip, u.last_login_at,
+        u.created_at, u.updated_at, u.is_deleted
+      FROM users u
+      ${whereClause}
+      ORDER BY u.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, limitNum, offset);
+
+    res.json({
+      users,
+      total: total.count,
+      page: pageNum,
+      limit: limitNum,
+      total_pages: Math.ceil(total.count / limitNum),
+    });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ message: "Error al obtener usuarios." });
+  }
+});
+
+// Obtener un usuario por ID (con sus conversiones y actividad)
+app.get("/api/admin/users/:id", adminMiddleware, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ message: "ID inválido." });
+
+    const user = db.prepare(`
+      SELECT id, name, email, email_verified, auth_provider, locale,
+             total_conversions, conversions_today, last_conversion_date,
+             login_count, last_login_ip, last_login_at,
+             created_at, updated_at, is_deleted
+      FROM users WHERE id = ?
+    `).get(userId);
+
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+
+    const conversions = db.prepare(`
+      SELECT id, original_name, original_size, source_format, target_format,
+             status, download_count, ip, created_at
+      FROM conversions WHERE user_id = ? OR user_email = ?
+      ORDER BY created_at DESC LIMIT 50
+    `).all(userId, user.email);
+
+    const activity = db.prepare(`
+      SELECT id, action, details, ip, created_at
+      FROM activity_logs WHERE user_id = ? OR user_email = ?
+      ORDER BY created_at DESC LIMIT 30
+    `).all(userId, user.email);
+
+    res.json({ user, conversions, activity });
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    res.status(500).json({ message: "Error al obtener usuario." });
+  }
+});
+
+// Resetear contraseña de un usuario (admin)
+app.post("/api/admin/users/:id/reset-password", adminMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { new_password } = req.body;
+    if (!userId) return res.status(400).json({ message: "ID inválido." });
+    if (!new_password || new_password.length < 8)
+      return res.status(400).json({ message: "La contraseña debe tener al menos 8 caracteres." });
+
+    const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 0").get(userId);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+
+    const hash = await bcrypt.hash(new_password, 12);
+    db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?").run(hash, userId);
+
+    // Invalidar todos los refresh tokens del usuario
+    db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
+
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_RESET_PASSWORD",
+      `Contraseña restablecida para: ${user.email}`, req.ip);
+
+    res.json({ message: `Contraseña de ${user.email} restablecida correctamente.` });
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    res.status(500).json({ message: "Error al restablecer la contraseña." });
+  }
+});
+
+// Eliminar (soft-delete) un usuario
+app.post("/api/admin/users/:id/delete", adminMiddleware, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ message: "ID inválido." });
+
+    const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 0").get(userId);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+
+    db.prepare("UPDATE users SET is_deleted = 1, deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(userId);
+    db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
+
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_DELETE_USER",
+      `Usuario eliminado: ${user.email}`, req.ip);
+
+    res.json({ message: `Usuario ${user.email} eliminado.` });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ message: "Error al eliminar usuario." });
+  }
+});
+
+// Restaurar un usuario eliminado
+app.post("/api/admin/users/:id/restore", adminMiddleware, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ message: "ID inválido." });
+
+    const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 1").get(userId);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado o no eliminado." });
+
+    db.prepare("UPDATE users SET is_deleted = 0, deleted_at = NULL, updated_at = datetime('now') WHERE id = ?").run(userId);
+
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_RESTORE_USER",
+      `Usuario restaurado: ${user.email}`, req.ip);
+
+    res.json({ message: `Usuario ${user.email} restaurado.` });
+  } catch (error) {
+    console.error("Error restoring user:", error);
+    res.status(500).json({ message: "Error al restaurar usuario." });
   }
 });
 
