@@ -413,9 +413,8 @@ export function UploadZone() {
         prev.map((file) => (file.status === "converting" ? { ...file, status: "ready", progress: 100 } : file))
       );
       let msg = conversionError instanceof Error ? conversionError.message : "No se pudo completar la conversión.";
-      // Si el error es por abort (timeout)
       if (conversionError instanceof Error && conversionError.name === "AbortError") {
-        msg = "La conversión está tardando demasiado. Inténtalo de nuevo.";
+        msg = "La conversión tardó demasiado. Inténtalo de nuevo.";
       }
       setError(msg);
     } finally {

@@ -429,51 +429,82 @@ function outputExtension(format) {
   return format.toLowerCase();
 }
 
-function run(command, args, options = {}) {
+function run(command, args, options = {}, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { ...options });
+
     let stderr = "";
-    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
-    child.on("error", reject);
+
+    const timeout = setTimeout(() => {
+      child.kill("SIGKILL"); // 👈 ESTO mata el proceso REAL
+      reject(new Error("Timeout de conversión"));
+    }, timeoutMs);
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+
     child.on("close", (code) => {
+      clearTimeout(timeout);
+
       if (code === 0) return resolve();
+
       reject(new Error(`${command} failed with code ${code}: ${stderr}`));
     });
   });
 }
 
 function findCommand(cmd) {
-  if (process.platform !== "win32" && cmd === "magick") return "convert";
+
   return cmd;
 }
 
-// ============================================================
-// Convertidores
-// ============================================================
-async function convertImage(inputPath, outputPath, targetFormat) {
+async function convertImage(inputPath, outputPath, targetFormat, fileSize) {
+  const timeout = fileSize < 1_000_000 ? 15000 : 120000;
+
+const args = [
+  inputPath,
+  "-auto-orient"
+];
+
+  // ICO fix
   if (targetFormat === "ICO") {
-    await run("magick", [
-      inputPath,
+    args.push(
       "-resize", "256x256",
-      "-define", "icon:auto-resize=256,128,64,32,16",
-      outputPath
-    ]);
-    return;
+      "-define", "icon:auto-resize=256,128,64,32,16"
+    );
   }
 
-  await run("magick", [inputPath, outputPath]);
-}
-async function convertMedia(inputPath, outputPath) {
-  await run("ffmpeg", ["-y", "-i", inputPath, outputPath]);
+  // OUTPUT SIEMPRE AL FINAL
+  args.push(outputPath);
+
+  await run(findCommand("convert"), args, {}, timeout);
 }
 
+async function convertMedia(inputPath, outputPath) {
+  await run("ffmpeg", [
+    "-y",
+    "-i", inputPath,
+    outputPath
+  ]);
+}
 async function convertDocument(inputPath, outputDir, targetFormat) {
   await run("libreoffice", ["--headless", "--convert-to", targetFormat.toLowerCase(), "--outdir", outputDir, inputPath]);
-  const files = await fs.readdir(outputDir);
-  const ext = `.${outputExtension(targetFormat)}`;
-  const match = files.find((f) => f.toLowerCase().endsWith(ext));
-  if (!match) throw new Error("LibreOffice no generó el archivo esperado.");
-  return path.join(outputDir, match);
+const files = await fs.readdir(outputDir);
+
+const match = files
+  .map(f => path.join(outputDir, f))
+  .map(f => ({ file: f, time: fs.statSync(f).mtimeMs }))
+  .sort((a, b) => b.time - a.time)[0]?.file;
+
+if (!match) throw new Error("LibreOffice no generó el archivo esperado.");
+
+return match;
 }
 
 const SEVEN_ZIP = "7z";
