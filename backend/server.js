@@ -179,6 +179,16 @@ db.exec(`
 console.log("📦 Ejecutando migraciones...");
 runMigrations(db);
 
+// ✅ Tabla de tokens de administrador (para login con token)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT UNIQUE NOT NULL,
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // ============================================================
 // 5. FUNCIONES DE AYUDA
 // ============================================================
@@ -440,10 +450,19 @@ function findCommand(cmd) {
 // ============================================================
 // Convertidores
 // ============================================================
-async function convertImage(inputPath, outputPath) {
-  await run(findCommand("magick"), [inputPath, outputPath]);
-}
+async function convertImage(inputPath, outputPath, targetFormat) {
+  if (targetFormat === "ICO") {
+    await run("magick", [
+      inputPath,
+      "-resize", "256x256",
+      "-define", "icon:auto-resize=256,128,64,32,16",
+      outputPath
+    ]);
+    return;
+  }
 
+  await run("magick", [inputPath, outputPath]);
+}
 async function convertMedia(inputPath, outputPath) {
   await run("ffmpeg", ["-y", "-i", inputPath, outputPath]);
 }
@@ -514,7 +533,7 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
     if (kind === "image") {
       const ext = outputExtension(targetFormat);
       outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
-      await convertImage(uploadedFile.path, outputPath);
+      await convertImage(uploadedFile.path, outputPath, targetFormat);
     } else if (kind === "video" || kind === "audio") {
       const ext = outputExtension(targetFormat);
       outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
@@ -559,8 +578,14 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
   } catch (error) {
     await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
     await fs.rm(uploadedFile.path, { force: true }).catch(() => {});
-    console.error("❌ Conversion error:", error);
-    res.status(500).json({ message: "No se pudo convertir el archivo en el servidor." });
+console.error("❌ Conversion error FULL:", error);
+console.error("STD ERROR:", error?.message);
+console.error("STACK:", error?.stack);
+
+res.status(500).json({
+  message: "No se pudo convertir el archivo en el servidor.",
+  debug: error?.message
+});
   }
 });
 
@@ -695,20 +720,28 @@ app.get("/api/admin/activity", adminMiddleware, (req, res) => {
 });
 
 // Estadísticas
-app.get("/api/admin/stats", adminMiddleware, (req, res) => {
+
+app.get("/api/admin/stats", adminMiddleware, async (req, res) => {
   try {
     const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get();
     const totalConversions = db.prepare("SELECT COUNT(*) as count FROM conversions").get();
     const conversionsToday = db.prepare("SELECT COUNT(*) as count FROM conversions WHERE date(created_at) = date('now')").get();
-    const totalFiles = fs.readdir(PERMANENT_UPLOADS_DIR).then(files => files.length).catch(() => 0);
 
-    Promise.all([totalFiles]).then(([fileCount]) => {
-      res.json({
-        total_users: totalUsers.count,
-        total_conversions: totalConversions.count,
-        conversions_today: conversionsToday.count,
-        total_files: fileCount
-      });
+    const files = await fs.readdir(PERMANENT_UPLOADS_DIR);
+    const fileCount = files.length;
+
+
+
+
+
+
+
+
+    res.json({
+      total_users: totalUsers.count,
+      total_conversions: totalConversions.count,
+      conversions_today: conversionsToday.count,
+      total_files: fileCount
     });
   } catch (error) {
     console.error("Error fetching stats:", error);
