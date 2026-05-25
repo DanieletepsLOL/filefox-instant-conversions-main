@@ -270,9 +270,10 @@ function FormatPicker({
 export function UploadZone() {
   const [files, setFiles] = useState<UploadedFile[]>(() => {
     const stored = getStoredUploads();
-    // Descartar archivos "converting" al recargar (perdieron el sourceFile y se quedarían colgados)
-    const valid = stored.filter((file) => file.status !== "converting");
-    saveUploads(valid);
+    // Solo mostrar archivos pendientes ("ready") en la página principal.
+    // Los convertidos ("done") y "converting" huérfanos se filtran aquí,
+    // pero NO se eliminan del localStorage para que aparezcan en /uploads.
+    const valid = stored.filter((file) => file.status === "ready");
     return valid.map((file) => {
       const kind = detectFileKind(file);
       return {
@@ -291,17 +292,23 @@ export function UploadZone() {
 
   const readyFiles = useMemo(() => files.filter((file) => file.status !== "done"), [files]);
 
+  // Sincronizar cambios al localStorage: mantiene los archivos "done"
+  // que ya no están en el state de UploadZone (porque se movieron a /uploads)
   useEffect(() => {
-    saveUploads(
-      files.map((file) => ({
-        id: file.id,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        status: file.status,
-        uploadedAt: file.uploadedAt,
-      }))
-    );
+    const stored = getStoredUploads();
+    const storedById = new Map(stored.map((s) => [s.id, s]));
+    // Actualizar con los archivos activos (ready/converting)
+    for (const f of files) {
+      storedById.set(f.id, {
+        id: f.id,
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        status: f.status,
+        uploadedAt: f.uploadedAt,
+      });
+    }
+    saveUploads(Array.from(storedById.values()));
   }, [files]);
 
   const addFiles = useCallback((list: FileList | null) => {
@@ -399,13 +406,28 @@ export function UploadZone() {
         }
 
         const downloadUrl = URL.createObjectURL(blob);
-        setFiles((prev) =>
-          prev.map((item) =>
-            item.id === file.id
-              ? { ...item, status: "done", progress: 100, downloadUrl, downloadFilename }
-              : item
-          )
-        );
+        // Una vez convertido, lo eliminamos de la vista principal
+        // pero lo guardamos en localStorage como "done" para /uploads
+        setFiles((prev) => {
+          const next = prev.filter((item) => item.id !== file.id);
+          // Guardar en localStorage como "done" para que aparezca en /uploads
+          const doneEntry: StoredUploadedFile = {
+            id: file.id,
+            name: downloadFilename,
+            size: blob.size,
+            type: file.targetFormat.toLowerCase(),
+            status: "done",
+            uploadedAt: file.uploadedAt,
+          };
+          const stored = getStoredUploads();
+          const existingIds = new Set(stored.map((s) => s.id));
+          if (!existingIds.has(file.id)) {
+            saveUploads([...stored, doneEntry]);
+          } else {
+            saveUploads(stored.map((s) => (s.id === file.id ? doneEntry : s)));
+          }
+          return next;
+        });
       }
     } catch (conversionError) {
       setFiles((prev) =>
@@ -458,7 +480,7 @@ export function UploadZone() {
         <p className="mt-4 text-xs text-muted-foreground">Tamaño máximo recomendado: 100MB por archivo</p>
       </div>
 
-      {files.length > 0 && (
+      {files.filter(f => f.status !== "done").length > 0 && (
         <div className="mt-6 rounded-2xl border bg-card shadow-[var(--shadow-card)] p-4 md:p-5 animate-[fade-up_0.4s_ease-out]">
           <div className="border-b pb-4">
             <h3 className="text-lg font-semibold tracking-tight">Panel de conversión</h3>
@@ -468,7 +490,7 @@ export function UploadZone() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {files.map((file) => {
+            {files.filter(f => f.status !== "done").map((file) => {
               const meta = fileKindMeta[file.kind];
               const Icon = meta.icon;
 
