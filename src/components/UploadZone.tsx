@@ -389,26 +389,18 @@ export function UploadZone() {
 
         const downloadUrl = URL.createObjectURL(blob);
 
-        // 2. DISPARAR DESCARGA AUTOMÁTICA EN EL NAVEGADOR
-        const triggerLink = document.createElement("a");
-        triggerLink.href = downloadUrl;
-        triggerLink.download = downloadFilename;
-        document.body.appendChild(triggerLink);
-        triggerLink.click();
-        document.body.removeChild(triggerLink);
-
-        // 3. ACTUALIZAR ESTADO REACTIVO Y PERSISTIR DE FORMA SEGURA
+        // 2. Usamos el callback funcional de React para asegurar la mutación atómica en memoria
         setFiles((prev) => {
           const updated = prev.map((item) =>
             item.id === file.id
               ? { ...item, status: "done" as const, progress: 100, downloadUrl, downloadFilename }
               : item
-          );
-          // Sincronización limpia con localStorage guardando el nuevo nombre del archivo convertido
+        );
+          // 3. Forzamos de forma segura el guardado de los metadatos en localStorage sin corromper el estado de la RAM
           saveUploads(
             updated.map((u) => ({
               id: u.id,
-              name: u.downloadFilename || u.name,
+              name: u.name,
               size: u.size,
               type: u.type,
               status: u.status,
