@@ -32,6 +32,19 @@ app.use(helmet());
 // Confiar en el proxy (Vite) para obtener la IP real del cliente
 app.set("trust proxy", 1);
 
+// Helper para obtener IP real del cliente (función mejorada)
+function getClientIP(req) {
+  // Cloudflare, proxy inversos, etc.
+  const forwarded = req.headers["x-forwarded-for"];
+  if (forwarded) {
+    // Tomar la primera IP de la cadena (la del cliente real)
+    return forwarded.split(",")[0].trim();
+  }
+  const realIp = req.headers["x-real-ip"];
+  if (realIp) return realIp;
+  return req.ip || req.connection?.remoteAddress || "desconocida";
+}
+
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:8080",
   credentials: true,
@@ -226,7 +239,7 @@ app.post("/api/auth/register", authLimiter, async (req, res) => {
     const result = db.prepare(`
       INSERT INTO users (name, email, password, locale, last_login_ip)
       VALUES (?, ?, ?, ?, ?)
-    `).run(name.trim(), email.trim().toLowerCase(), hash, locale, req.ip);
+    `).run(name.trim(), email.trim().toLowerCase(), hash, locale, getClientIP(req));
 
     const userId = result.lastInsertRowid;
     const user = { id: userId, email: email.trim().toLowerCase(), name: name.trim() };
@@ -234,7 +247,7 @@ app.post("/api/auth/register", authLimiter, async (req, res) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(userId);
 
-    logActivity(userId, email.trim().toLowerCase(), "REGISTER", "Nuevo registro", req.ip);
+    logActivity(userId, email.trim().toLowerCase(), "REGISTER", "Nuevo registro", getClientIP(req));
 
     res.status(201).json({
       message: "Cuenta creada. Por favor, verifica tu correo electrónico.",
@@ -273,12 +286,12 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
         locale = COALESCE(?, locale),
         updated_at = datetime('now')
       WHERE id = ?
-    `).run(req.ip, locale, user.id);
+    `).run(getClientIP(req), locale, user.id);
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user.id);
 
-    logActivity(user.id, user.email, "LOGIN", "Inicio de sesión", req.ip);
+    logActivity(user.id, user.email, "LOGIN", "Inicio de sesión", getClientIP(req));
 
     res.json({
       message: "Inicio de sesión exitoso.",
@@ -320,7 +333,7 @@ app.post("/api/auth/refresh", (req, res) => {
     const accessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(stored.user_id);
 
-    logActivity(stored.user_id, stored.email, "REFRESH_TOKEN", "Token renovado", req.ip);
+    logActivity(stored.user_id, stored.email, "REFRESH_TOKEN", "Token renovado", getClientIP(req));
 
     res.json({
       access_token: accessToken,
@@ -337,7 +350,7 @@ app.post("/api/auth/refresh", (req, res) => {
 app.post("/api/auth/logout", authMiddleware, (req, res) => {
   try {
     db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(req.user.id);
-    logActivity(req.user.id, req.user.email, "LOGOUT", "Cierre de sesión", req.ip);
+    logActivity(req.user.id, req.user.email, "LOGOUT", "Cierre de sesión", getClientIP(req));
     res.json({ message: "Sesión cerrada." });
   } catch (error) {
     console.error("Logout error:", error);
@@ -503,7 +516,7 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
     db.prepare(`
       INSERT INTO conversions (user_id, user_email, original_name, original_size, source_format, target_format, ip)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, userEmail, uploadedFile.originalname, uploadedFile.size, originalExt.replace(".", ""), targetFormat, req.ip);
+    `).run(userId, userEmail, uploadedFile.originalname, uploadedFile.size, originalExt.replace(".", ""), targetFormat, getClientIP(req));
 
     // Actualizar contador del usuario
     if (userId) {
@@ -516,7 +529,7 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
       }
     }
 
-    logActivity(userId, userEmail, "CONVERSION", `${uploadedFile.originalname} → ${targetFormat}`, req.ip);
+    logActivity(userId, userEmail, "CONVERSION", `${uploadedFile.originalname} → ${targetFormat}`, getClientIP(req));
 
     const downloadName = `${path.parse(uploadedFile.originalname).name}.${outputExtension(targetFormat)}`;
     res.download(outputPath, downloadName, async () => {
@@ -564,7 +577,7 @@ app.post("/api/auth/admin-login", authLimiter, (req, res) => {
       { expiresIn: '24h' }
     );
 
-    logActivity(null, "admin@filefoxadmins.com", "ADMIN_LOGIN", "Inicio de sesión de administrador", req.ip);
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_LOGIN", "Inicio de sesión de administrador", getClientIP(req));
 
     res.json({
       message: "Acceso de administrador concedido.",
@@ -785,7 +798,7 @@ app.post("/api/admin/users/:id/reset-password", adminMiddleware, async (req, res
     db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
 
     logActivity(null, "admin@filefoxadmins.com", "ADMIN_RESET_PASSWORD",
-      `Contraseña restablecida para: ${user.email}`, req.ip);
+      `Contraseña restablecida para: ${user.email}`, getClientIP(req));
 
     res.json({ message: `Contraseña de ${user.email} restablecida correctamente.` });
   } catch (error) {
@@ -807,7 +820,7 @@ app.post("/api/admin/users/:id/delete", adminMiddleware, (req, res) => {
     db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
 
     logActivity(null, "admin@filefoxadmins.com", "ADMIN_DELETE_USER",
-      `Usuario eliminado: ${user.email}`, req.ip);
+      `Usuario eliminado: ${user.email}`, getClientIP(req));
 
     res.json({ message: `Usuario ${user.email} eliminado.` });
   } catch (error) {
@@ -828,7 +841,7 @@ app.post("/api/admin/users/:id/restore", adminMiddleware, (req, res) => {
     db.prepare("UPDATE users SET is_deleted = 0, deleted_at = NULL, updated_at = datetime('now') WHERE id = ?").run(userId);
 
     logActivity(null, "admin@filefoxadmins.com", "ADMIN_RESTORE_USER",
-      `Usuario restaurado: ${user.email}`, req.ip);
+      `Usuario restaurado: ${user.email}`, getClientIP(req));
 
     res.json({ message: `Usuario ${user.email} restaurado.` });
   } catch (error) {

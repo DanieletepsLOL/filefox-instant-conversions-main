@@ -127,7 +127,7 @@ function AdminPage() {
     }
   };
 
-  const handleLogout = () => {
+      const handleLogout = () => {
     localStorage.removeItem("filefox:admin-token");
     setToken("");
     setStats(null);
@@ -135,6 +135,7 @@ function AdminPage() {
     setConversions([]);
     setActivity([]);
     setUploads([]);
+    router.navigate({ to: '/login' });
   };
 
   // Fetch helpers
