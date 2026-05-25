@@ -270,9 +270,8 @@ function FormatPicker({
 export function UploadZone() {
   const [files, setFiles] = useState<UploadedFile[]>(() => {
     const stored = getStoredUploads();
-    // Al recargar la página, solo conservamos archivos en medio de conversión.
-    // Los "ready" perdieron el archivo físico y los "done" perdieron el blob URL.
-    const valid = stored.filter((file) => file.status === "converting");
+    // Descartar archivos "converting" al recargar (perdieron el sourceFile y se quedarían colgados)
+    const valid = stored.filter((file) => file.status !== "converting");
     saveUploads(valid);
     return valid.map((file) => {
       const kind = detectFileKind(file);
