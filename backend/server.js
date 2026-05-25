@@ -14,7 +14,6 @@ import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { runMigrations } from "./migrate.js";
-import sharp from "sharp"; // 👈 Añadido sharp para gestionar los archivos ICO de forma nativa
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workRoot = path.join(os.tmpdir(), "filefox-tmp");
@@ -466,43 +465,32 @@ function findCommand(cmd) {
   return cmd;
 }
 
-// ============================================================
-// MODIFICADO ÚNICAMENTE ESTA SECCIÓN (Sustituido Python por Sharp)
-// ============================================================
 async function convertImage(inputPath, outputPath, targetFormat, fileSize) {
-  const target = targetFormat.toUpperCase();
+  const timeout = fileSize < 1_000_000 ? 15000 : 120000;
 
-  // 1. CONVERTIR HACIA .ICO (Cualquier formato de imagen a ICO)
-  if (target === "ICO") {
-    // ICO requiere tamaños específicos. Hacemos un resize máximo a 256x256 y guardamos nativamente.
-    await sharp(inputPath)
-      .resize(256, 256, { fit: "inside", withoutEnlargement: true })
-      .toFile(outputPath);
-    return;
-  }
-
-  // 2. CONVERTIR DESDE .ICO (De ICO hacia JPG, PNG, WEBP, etc.)
+  // ICO con librería nativa ico-to-png
   if (inputPath.toLowerCase().endsWith(".ico")) {
-    let pipeline = sharp(inputPath);
-    
-    // Si el destino es JPG, JPEG o BMP, quitamos transparencias y ponemos fondo blanco
-    if (["JPG", "JPEG", "BMP"].includes(target)) {
-      pipeline = pipeline.flatten({ background: { r: 255, g: 255, b: 255 } });
-    }
-    
-    await pipeline.toFile(outputPath);
+    const { convertIco } = await import("./ico-converter.js");
+    await convertIco(inputPath, outputPath, targetFormat, timeout);
     return;
   }
 
-  // El resto de imágenes se siguen procesando con ImageMagick como antes
   const args = [
     inputPath,
     "-auto-orient"
   ];
 
+  // ICO fix (por si alguien convierte a ICO desde otro formato)
+  if (targetFormat === "ICO") {
+    args.push(
+      "-resize", "256x256",
+      "-define", "icon:auto-resize=256,128,64,32,16"
+    );
+  }
+
+  // OUTPUT SIEMPRE AL FINAL
   args.push(outputPath);
 
-  const timeout = fileSize < 1_000_000 ? 15000 : 120000;
   await run(findCommand("convert"), args, {}, timeout);
 }
 
@@ -781,6 +769,13 @@ app.get("/api/admin/stats", adminMiddleware, async (req, res) => {
     const files = await fs.readdir(PERMANENT_UPLOADS_DIR);
     const fileCount = files.length;
 
+
+
+
+
+
+
+
     res.json({
       total_users: totalUsers.count,
       total_conversions: totalConversions.count,
@@ -868,10 +863,92 @@ app.get("/api/admin/users/:id", adminMiddleware, (req, res) => {
       FROM activity_logs WHERE user_id = ? OR user_email = ?
       ORDER BY created_at DESC LIMIT 30
     `).all(userId, user.email);
-    
+
     res.json({ user, conversions, activity });
   } catch (error) {
-    console.error("Error fetching user details:", error);
-    res.status(500).json({ message: "Error al obtener detalles del usuario." });
+    console.error("Error fetching user:", error);
+    res.status(500).json({ message: "Error al obtener usuario." });
   }
+});
+
+// Resetear contraseña de un usuario (admin)
+app.post("/api/admin/users/:id/reset-password", adminMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const { new_password } = req.body;
+    if (!userId) return res.status(400).json({ message: "ID inválido." });
+    if (!new_password || new_password.length < 8)
+      return res.status(400).json({ message: "La contraseña debe tener al menos 8 caracteres." });
+
+    const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 0").get(userId);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+
+    const hash = await bcrypt.hash(new_password, 12);
+    db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?").run(hash, userId);
+
+    // Invalidar todos los refresh tokens del usuario
+    db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
+
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_RESET_PASSWORD",
+      `Contraseña restablecida para: ${user.email}`, getClientIP(req));
+
+    res.json({ message: `Contraseña de ${user.email} restablecida correctamente.` });
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    res.status(500).json({ message: "Error al restablecer la contraseña." });
+  }
+});
+
+// Eliminar (soft-delete) un usuario
+app.post("/api/admin/users/:id/delete", adminMiddleware, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ message: "ID inválido." });
+
+    const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 0").get(userId);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+
+    db.prepare("UPDATE users SET is_deleted = 1, deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(userId);
+    db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
+
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_DELETE_USER",
+      `Usuario eliminado: ${user.email}`, getClientIP(req));
+
+    res.json({ message: `Usuario ${user.email} eliminado.` });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ message: "Error al eliminar usuario." });
+  }
+});
+
+// Restaurar un usuario eliminado
+app.post("/api/admin/users/:id/restore", adminMiddleware, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!userId) return res.status(400).json({ message: "ID inválido." });
+
+    const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 1").get(userId);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado o no eliminado." });
+
+    db.prepare("UPDATE users SET is_deleted = 0, deleted_at = NULL, updated_at = datetime('now') WHERE id = ?").run(userId);
+
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_RESTORE_USER",
+      `Usuario restaurado: ${user.email}`, getClientIP(req));
+
+    res.json({ message: `Usuario ${user.email} restaurado.` });
+  } catch (error) {
+    console.error("Error restoring user:", error);
+    res.status(500).json({ message: "Error al restaurar usuario." });
+  }
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+const port = Number(process.env.PORT ?? 4000);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Filefox backend listening on http://0.0.0.0:${port}`);
+  console.log(`CORS origin: ${process.env.FRONTEND_URL || "http://localhost:8080"}`);
+  console.log(`Rate limit: 30 req/min general, 5 req/min auth`);
 });
