@@ -465,11 +465,13 @@ function findCommand(cmd) {
   return cmd;
 }
 
-async function convertImage(inputPath, outputPath, targetFormat, fileSize) {
+async function convertImage(inputPath, outputPath, targetFormat, fileSize, originalName = "") {
   const timeout = fileSize < 1_000_000 ? 15000 : 120000;
 
-  // ICO con librería nativa ico-to-png
-  if (inputPath.toLowerCase().endsWith(".ico")) {
+  // Detectar .ico por el nombre original (multer cambia la ruta temporal)
+  const sourceIsIco = (originalName || inputPath).toLowerCase().endsWith(".ico");
+
+  if (sourceIsIco) {
     const { convertIco } = await import("./ico-converter.js");
     await convertIco(inputPath, outputPath, targetFormat, timeout);
     return;
@@ -488,7 +490,6 @@ async function convertImage(inputPath, outputPath, targetFormat, fileSize) {
     );
   }
 
-  // OUTPUT SIEMPRE AL FINAL
   args.push(outputPath);
 
   await run(findCommand("convert"), args, {}, timeout);
@@ -572,7 +573,8 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
     if (kind === "image") {
       const ext = outputExtension(targetFormat);
       outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
-      await convertImage(uploadedFile.path, outputPath, targetFormat, uploadedFile.size);
+      // Pasar también el nombre original para detectar .ico por extensión
+      await convertImage(uploadedFile.path, outputPath, targetFormat, uploadedFile.size, uploadedFile.originalname);
     } else if (kind === "video" || kind === "audio") {
       const ext = outputExtension(targetFormat);
       outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
