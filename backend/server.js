@@ -429,7 +429,7 @@ function outputExtension(format) {
   return format.toLowerCase();
 }
 
-function run(command, args, options = {}, timeoutMs = 120000) {
+function run(command, args, options = {}, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { ...options });
 
@@ -483,7 +483,7 @@ const args = [
   // OUTPUT SIEMPRE AL FINAL
   args.push(outputPath);
 
-  await run(findCommand("convert"), args, {}, timeout);
+  await run(findCommand("magick"), args, {}, timeout);
 }
 
 async function convertMedia(inputPath, outputPath) {
@@ -564,7 +564,7 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
     if (kind === "image") {
       const ext = outputExtension(targetFormat);
       outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
-      await convertImage(uploadedFile.path, outputPath, targetFormat);
+      await convertImage(uploadedFile.path, outputPath, targetFormat, uploadedFile.size);
     } else if (kind === "video" || kind === "audio") {
       const ext = outputExtension(targetFormat);
       outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
