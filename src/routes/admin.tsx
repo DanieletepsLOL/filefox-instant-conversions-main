@@ -79,6 +79,7 @@ function AdminPage() {
   const [resetPassMsg, setResetPassMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [checkingToken, setCheckingToken] = useState(false);
 
   // Cargar token desde localStorage solo en cliente
   useEffect(() => {
