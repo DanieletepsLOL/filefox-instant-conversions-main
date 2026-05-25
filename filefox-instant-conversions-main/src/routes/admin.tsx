@@ -11,14 +11,11 @@ import {
   Activity,
   RefreshCw,
   LogOut,
-  Download,
-  Trash2,
   FileText,
   MousePointerClick,
-  Globe,
-  Clock,
   HardDrive,
 } from "lucide-react";
+import { getAdminToken, isAdmin, logoutUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -121,16 +118,15 @@ function AdminDashboard() {
 
   // Verificar autenticación de admin
   useEffect(() => {
-    const adminToken = localStorage.getItem("filefox:admin-token");
-    if (!adminToken) {
-      router.navigate({ to: "/admin/login" });
+    if (!isAdmin()) {
+      router.navigate({ to: "/login" });
       return;
     }
     fetchAllData();
   }, []);
 
   async function fetchWithAdminToken(url: string): Promise<Response> {
-    const adminToken = localStorage.getItem("filefox:admin-token");
+    const adminToken = getAdminToken();
     if (!adminToken) throw new Error("No admin token");
 
     const response = await fetch(url, {
@@ -140,8 +136,8 @@ function AdminDashboard() {
     if (response.status === 401) {
       const data = await response.json().catch(() => ({}));
       if (data.code === "ADMIN_TOKEN_EXPIRED") {
-        localStorage.removeItem("filefox:admin-token");
-        router.navigate({ to: "/admin/login" });
+        logoutUser();
+        router.navigate({ to: "/login" });
         throw new Error("Sesión expirada");
       }
     }
@@ -183,8 +179,8 @@ function AdminDashboard() {
   }
 
   function handleLogout() {
-    localStorage.removeItem("filefox:admin-token");
-    router.navigate({ to: "/admin/login" });
+    logoutUser();
+    router.navigate({ to: "/login" });
   }
 
   // ============================================================

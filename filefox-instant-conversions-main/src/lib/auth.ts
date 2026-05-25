@@ -3,11 +3,21 @@ const REFRESH_TOKEN_KEY = "filefox:refresh-token";
 const EMAIL_KEY = "filefox:user-email";
 const NAME_KEY = "filefox:user-name";
 
+// Keys para sesión de administrador
+const ADMIN_TOKEN_KEY = "filefox:admin-token";
+const ADMIN_EMAIL_KEY = "filefox:admin-email";
+
+const ADMIN_EMAIL = "admin@filefoxadmins.com";
+
 type AuthListener = () => void;
 const authListeners = new Set<AuthListener>();
 
 function dispatchAuthChange() {
   authListeners.forEach((listener) => listener());
+}
+
+export function isAdminEmail(email: string): boolean {
+  return email.trim().toLowerCase() === ADMIN_EMAIL;
 }
 
 export function loginUser(email: string, name: string, accessToken: string, refreshToken: string) {
@@ -17,6 +27,24 @@ export function loginUser(email: string, name: string, accessToken: string, refr
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   localStorage.setItem(EMAIL_KEY, email);
   localStorage.setItem(NAME_KEY, name);
+  // Limpiar sesión de admin si existe
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_EMAIL_KEY);
+  dispatchAuthChange();
+
+  return true;
+}
+
+export function loginAdmin(adminToken: string) {
+  if (typeof window === "undefined") return false;
+
+  localStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+  localStorage.setItem(ADMIN_EMAIL_KEY, ADMIN_EMAIL);
+  // Limpiar sesión de usuario normal
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(EMAIL_KEY);
+  localStorage.removeItem(NAME_KEY);
   dispatchAuthChange();
 
   return true;
@@ -38,17 +66,29 @@ export function logoutUser() {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(EMAIL_KEY);
   localStorage.removeItem(NAME_KEY);
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_EMAIL_KEY);
   dispatchAuthChange();
 }
 
 export function isAuthenticated() {
   if (typeof window === "undefined") return false;
-  return Boolean(localStorage.getItem(ACCESS_TOKEN_KEY));
+  return Boolean(localStorage.getItem(ACCESS_TOKEN_KEY)) || Boolean(localStorage.getItem(ADMIN_TOKEN_KEY));
+}
+
+export function isAdmin() {
+  if (typeof window === "undefined") return false;
+  return Boolean(localStorage.getItem(ADMIN_TOKEN_KEY));
 }
 
 export function getAccessToken() {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getAdminToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
 }
 
 export function getRefreshToken() {
