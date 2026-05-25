@@ -12,35 +12,28 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Carpeta temporal para archivos de trabajo
 const workRoot = path.join(os.tmpdir(), "filefox-tmp");
+
 const upload = multer({
   dest: path.join(workRoot, "uploads"),
-  limits: {
-    fileSize: 100 * 1024 * 1024,
-  },
+  limits: { fileSize: 100 * 1024 * 1024 },
 });
 
-// !!! AQUÍ SE DECLARA "app" (Esto evita el ReferenceError) !!!
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
-// ============================================
-// Base de datos SQLite + Auth
-// ============================================
-const JWT_SECRET = process.env.JWT_SECRET || "filefox-secret-change-in-production-" + crypto.randomBytes(16).toString("hex");
+// ============================================================
+// Base de datos SQLite + Autenticación
+// ============================================================
+const JWT_SECRET = process.env.JWT_SECRET || "filefox-secret-" + crypto.randomBytes(16).toString("hex");
 const DATA_DIR = path.join(os.tmpdir(), "filefox-data");
 const dbPath = path.join(DATA_DIR, "filefox.db");
 
-// Asegurar que el directorio de datos existe
 await fs.mkdir(DATA_DIR, { recursive: true }).catch(() => {});
-
 const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 
-// Crear tabla de usuarios si no existe
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,113 +44,104 @@ db.exec(`
   )
 `);
 
-// Middleware para verificar token JWT
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "Token requerido." });
   }
-
-  const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    req.user = jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
     next();
   } catch {
     return res.status(401).json({ message: "Token inválido o expirado." });
   }
 }
 
-// POST /api/auth/register
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    if (!name?.trim() || !email?.trim() || !password?.trim()) {
+    if (!name?.trim() || !email?.trim() || !password?.trim())
       return res.status(400).json({ message: "Todos los campos son obligatorios." });
-    }
-    if (password.length < 8) {
+    if (password.length < 8)
       return res.status(400).json({ message: "La contraseña debe tener al menos 8 caracteres." });
-    }
-    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email.trim().toLowerCase());
-    if (existing) {
+    if (db.prepare("SELECT id FROM users WHERE email = ?").get(email.trim().toLowerCase()))
       return res.status(409).json({ message: "Este correo ya está registrado." });
-    }
-    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const hash = await bcrypt.hash(password, 12);
     const result = db.prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)").run(
-      name.trim(),
-      email.trim().toLowerCase(),
-      hashedPassword
+      name.trim(), email.trim().toLowerCase(), hash
     );
     const token = jwt.sign(
       { id: result.lastInsertRowid, email: email.trim().toLowerCase(), name: name.trim() },
-      JWT_SECRET,
-      { expiresIn: "30d" }
+      JWT_SECRET, { expiresIn: "30d" }
     );
-    res.status(201).json({
-      message: "Cuenta creada exitosamente.",
-      token,
-      user: { email: email.trim().toLowerCase(), name: name.trim() },
-    });
+    res.status(201).json({ message: "Cuenta creada.", token, user: { email: email.trim().toLowerCase(), name: name.trim() } });
   } catch (error) {
     console.error("Register error:", error);
     res.status(500).json({ message: "Error al crear la cuenta." });
   }
 });
 
-// POST /api/auth/login
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email?.trim() || !password?.trim()) {
+    if (!email?.trim() || !password?.trim())
       return res.status(400).json({ message: "Correo y contraseña son obligatorios." });
-    }
+
     const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email.trim().toLowerCase());
-    if (!user) {
+    if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ message: "Correo o contraseña incorrectos." });
-    }
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ message: "Correo o contraseña incorrectos." });
-    }
+
     const token = jwt.sign(
       { id: user.id, email: user.email, name: user.name },
-      JWT_SECRET,
-      { expiresIn: "30d" }
+      JWT_SECRET, { expiresIn: "30d" }
     );
-    res.json({
-      message: "Inicio de sesión exitoso.",
-      token,
-      user: { email: user.email, name: user.name },
-    });
+    res.json({ message: "Inicio de sesión exitoso.", token, user: { email: user.email, name: user.name } });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ message: "Error al iniciar sesión." });
   }
 });
 
-// GET /api/auth/me
 app.get("/api/auth/me", authMiddleware, (req, res) => {
   const user = db.prepare("SELECT id, name, email, created_at FROM users WHERE id = ?").get(req.user.id);
-  if (!user) {
-    return res.status(404).json({ message: "Usuario no encontrado." });
-  }
+  if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
   res.json({ user });
 });
 
+// ============================================================
 // Formatos permitidos
+// ============================================================
 const allowedFormats = new Set([
   "JPG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "HEIC", "ICO", "SVG", "PDF", "EPS",
-  "MP4", "WEBM", "MOV", "MKV", "AVI", "M4V", "FLV", "MP3", "WAV", "AAC", "FLAC", "OGG",
-  "M4A", "OPUS", "DOC", "DOCX", "ODT", "RTF", "TXT", "HTML", "MD", "EPUB", "CSV", "XLSX",
-  "JSON", "XML", "YAML", "ZIP", "7Z", "TAR", "TAR.GZ", "TGZ", "GZ", "BZ2", "XZ",
+  "MP4", "WEBM", "MOV", "MKV", "AVI", "M4V", "FLV",
+  "MP3", "WAV", "AAC", "FLAC", "OGG", "M4A", "OPUS",
+  "DOC", "DOCX", "ODT", "RTF", "TXT", "HTML", "MD", "EPUB", "CSV", "XLSX", "JSON", "XML", "YAML",
+  "ZIP", "7Z", "TAR", "TAR.GZ", "TGZ", "GZ", "BZ2", "XZ",
 ]);
+
+const imageExts = ["jpg","jpeg","png","webp","avif","gif","bmp","tiff","heic","ico","svg","pdf","eps"];
+const videoExts = ["mp4","webm","mov","mkv","avi","m4v","flv"];
+const audioExts = ["mp3","wav","aac","flac","ogg","m4a","opus"];
+const docExts = ["doc","docx","odt","rtf","txt","html","md","epub","csv","xlsx","json","xml","yaml"];
+const archiveExts = ["zip","7z","rar","tar","gz","tgz","bz2","xz"];
+
+function detectSourceKind(filename) {
+  const ext = path.extname(filename).toLowerCase().replace(".", "");
+  if (imageExts.includes(ext)) return "image";
+  if (videoExts.includes(ext)) return "video";
+  if (audioExts.includes(ext)) return "audio";
+  if (docExts.includes(ext)) return "document";
+  if (archiveExts.includes(ext)) return "archive";
+  return "other";
+}
 
 function normalizeFormat(format) {
   return String(format ?? "").trim().toUpperCase();
 }
 
 function outputExtension(format) {
-  return format.toLowerCase();
+  return format.toLowerCase().replace(".", ".");
 }
 
 function run(command, args, options = {}) {
@@ -173,78 +157,115 @@ function run(command, args, options = {}) {
   });
 }
 
-const SEVEN_ZIP = "7z";
+function findCommand(cmd) {
+  if (process.platform !== "win32" && cmd === "magick") return "convert";
+  return cmd;
+}
 
-// =========================================================================
-// AQUÍ PEGAS TU ÚLTIMO CÓDIGO (FUNCIONES DE COMPRESIÓN, ENDPOINT Y LISTEN)
-// =========================================================================
+// ============================================================
+// Convertidores
+// ============================================================
+async function convertImage(inputPath, outputPath) {
+  await run(findCommand("magick"), [inputPath, outputPath]);
+}
+
+async function convertMedia(inputPath, outputPath) {
+  await run("ffmpeg", ["-y", "-i", inputPath, outputPath]);
+}
+
+async function convertDocument(inputPath, outputDir, targetFormat) {
+  await run("libreoffice", ["--headless", "--convert-to", targetFormat.toLowerCase(), "--outdir", outputDir, inputPath]);
+  const files = await fs.readdir(outputDir);
+  const ext = `.${outputExtension(targetFormat)}`;
+  const match = files.find((f) => f.toLowerCase().endsWith(ext));
+  if (!match) throw new Error("LibreOffice no generó el archivo esperado.");
+  return path.join(outputDir, match);
+}
+
+const SEVEN_ZIP = "7z";
 
 async function convertArchive(inputPath, outputPath, outputDir, targetFormat) {
   const extractDir = path.join(outputDir, "extracted");
   await fs.mkdir(extractDir, { recursive: true });
-  
-  // 1. Extraer cualquier formato usando 7z
   await run(SEVEN_ZIP, ["x", inputPath, `-o${extractDir}`, "-y"]);
 
-  // 2. Convertir al formato de destino solicitado
   if (targetFormat === "TAR") {
     await run("tar", ["-cf", outputPath, "-C", extractDir, "."]);
     return;
   }
-
   if (targetFormat === "TAR.GZ" || targetFormat === "TGZ") {
     await run("tar", ["-czf", outputPath, "-C", extractDir, "."]);
     return;
   }
-
   if (targetFormat === "GZ" || targetFormat === "BZ2" || targetFormat === "XZ") {
-    const compressionFlag = targetFormat === "GZ" ? "z" : targetFormat === "BZ2" ? "j" : "J";
-    await run("tar", [`-c${compressionFlag}f`, outputPath, "-C", extractDir, "."]);
+    const flag = targetFormat === "GZ" ? "z" : targetFormat === "BZ2" ? "j" : "J";
+    await run("tar", [`-c${flag}f`, outputPath, "-C", extractDir, "."]);
     return;
   }
 
-  // 3. Para 7Z, ZIP y otros formatos soportados por 7-Zip
+  // ZIP, 7Z y otros formatos de 7-Zip
   const outDir = path.dirname(outputPath);
   const outName = path.basename(outputPath);
-  
-  await run(SEVEN_ZIP, ["a", outName, path.join(extractDir, "*"), `-t${targetFormat.toLowerCase()}`], { 
-    cwd: outDir 
-  });
+  await run(SEVEN_ZIP, ["a", outName, `${extractDir}${path.sep}.`, `-t${outputExtension(targetFormat)}`], { cwd: outDir });
 }
 
-// Endpoint para procesar la conversión de archivos
-app.post("/api/convert", authMiddleware, upload.single("file"), async (req, res) => {
+// ============================================================
+// Endpoint principal de conversión
+// ============================================================
+app.post("/api/conversions", upload.single("file"), async (req, res) => {
+  const uploadedFile = req.file;
+  const sourceKind = String(req.body.sourceKind ?? "");
+  const targetFormat = normalizeFormat(req.body.targetFormat);
+  const outputDir = path.join(workRoot, "outputs", crypto.randomUUID());
+
+  if (!uploadedFile) {
+    return res.status(400).json({ message: "No file uploaded." });
+  }
+  if (!allowedFormats.has(targetFormat)) {
+    return res.status(400).json({ message: "Unsupported output format." });
+  }
+
   try {
-    if (!req.file) return res.status(400).json({ message: "No se subió ningún archivo." });
-    
-    const targetFormat = normalizeFormat(req.body.targetFormat);
-    if (!allowedFormats.has(targetFormat)) {
-      return res.status(400).json({ message: "Formato no soportado." });
+    await fs.mkdir(outputDir, { recursive: true });
+    const kind = sourceKind || detectSourceKind(uploadedFile.originalname);
+    let outputPath;
+
+    if (kind === "image") {
+      const ext = outputExtension(targetFormat);
+      outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
+      await convertImage(uploadedFile.path, outputPath);
+    } else if (kind === "video" || kind === "audio") {
+      const ext = outputExtension(targetFormat);
+      outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
+      await convertMedia(uploadedFile.path, outputPath);
+    } else if (kind === "document" || kind === "text") {
+      outputPath = await convertDocument(uploadedFile.path, outputDir, targetFormat);
+    } else if (kind === "archive") {
+      const ext = outputExtension(targetFormat);
+      outputPath = path.join(outputDir, `converted-${crypto.randomUUID()}.${ext}`);
+      await convertArchive(uploadedFile.path, outputPath, outputDir, targetFormat);
+    } else {
+      throw new Error("Tipo de archivo no soportado.");
     }
 
-    const uniqueId = crypto.randomBytes(8).toString("hex");
-    const outputDir = path.join(workRoot, "outputs", uniqueId);
-    await fs.mkdir(outputDir, { recursive: true });
-
-    const inputPath = req.file.path;
-    const outputName = `${path.parse(req.file.originalname).name}.${targetFormat.toLowerCase()}`;
-    const outputPath = path.join(outputDir, outputName);
-
-    await convertArchive(inputPath, outputPath, outputDir, targetFormat);
-
-    res.download(outputPath, outputName, async (err) => {
-      await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
-      await fs.rm(inputPath, { force: true }).catch(() => {});
+    const downloadName = `${path.parse(uploadedFile.originalname).name}.${outputExtension(targetFormat)}`;
+    res.download(outputPath, downloadName, async () => {
+      await fs.rm(outputDir, { recursive: true, force: true });
+      await fs.rm(uploadedFile.path, { force: true });
     });
-
   } catch (error) {
+    await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(uploadedFile.path, { force: true }).catch(() => {});
     console.error("Conversion error:", error);
-    res.status(500).json({ message: "Error al procesar el archivo comprimido." });
+    res.status(500).json({ message: "No se pudo convertir el archivo en el servidor." });
   }
 });
 
-// Inicializar el servidor Express
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor FileFox corriendo en http://localhost:${PORT}`);
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+const port = Number(process.env.PORT ?? 4000);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Filefox backend listening on http://0.0.0.0:${port}`);
 });
