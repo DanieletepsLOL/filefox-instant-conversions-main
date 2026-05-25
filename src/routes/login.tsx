@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useState } from "react";
+﻿import { FormEvent, useEffect, useRef, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -38,11 +38,14 @@ function Login() {
   const [passwordOrToken, setPasswordOrToken] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const hasRedirected = useRef(false);
 
   const isAdmin = isAdminEmail(email);
 
   useEffect(() => {
-    if (isAuthenticated()) {
+    // Solo redirigir una vez para evitar bucles infinitos
+    if (!hasRedirected.current && isAuthenticated()) {
+      hasRedirected.current = true;
       const adminToken = localStorage.getItem("filefox:admin-token");
       if (adminToken) {
         router.navigate({ to: "/admin" });

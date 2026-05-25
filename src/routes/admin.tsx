@@ -1,6 +1,5 @@
 ﻿import { useState, useEffect } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import "./admin.css";
 
 // ============================================================
@@ -60,6 +59,7 @@ interface Stats {
 }
 
 function AdminPage() {
+  const router = useRouter();
   const [token, setToken] = useState<string>("");
   const [email, setEmail] = useState("");
   const [adminTokenInput, setAdminTokenInput] = useState("");
@@ -83,7 +83,7 @@ function AdminPage() {
 
   // Cargar token desde localStorage solo en cliente
   useEffect(() => {
-    const saved = localStorage.getItem('admin_token') || '';
+    const saved = localStorage.getItem('filefox:admin-token') || ''
     if (saved) {
       setToken(saved);
     }
@@ -113,7 +113,7 @@ function AdminPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Error al autenticar");
-      localStorage.setItem("admin_token", data.admin_token);
+      localStorage.setItem("filefox:admin-token", data.admin_token);
       setToken(data.admin_token);
       fetchStats();
       fetchConversions();
@@ -128,7 +128,7 @@ function AdminPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("admin_token");
+    localStorage.removeItem("filefox:admin-token");
     setToken("");
     setStats(null);
     setUsers([]);
@@ -264,12 +264,12 @@ function AdminPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
-  // Si no hay token, redirigir a /login (solo en cliente)
+    // Si no hay token en localStorage, redirigir a /login
   useEffect(() => {
-    if (!token && typeof window !== 'undefined') {
-      window.location.href = '/login';
+    if (typeof window !== 'undefined' && !localStorage.getItem('filefox:admin-token')) {
+      router.navigate({ to: '/login' });
     }
-  }, [token]);
+  }, []);
 
 // Panel principal con sidebar vertical
   const tabs: { id: TabId; label: string; icon: string }[] = [
