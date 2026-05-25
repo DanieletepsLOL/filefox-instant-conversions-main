@@ -18,6 +18,13 @@ export default defineConfig({
         "/api": {
           target: "http://localhost:4000",
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              // Pasar la IP real del cliente
+              const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+              proxyReq.setHeader('x-forwarded-for', clientIp);
+            });
+          },
         },
       },
     },

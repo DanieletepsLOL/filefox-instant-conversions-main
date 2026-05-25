@@ -34,15 +34,28 @@ app.set("trust proxy", 1);
 
 // Helper para obtener IP real del cliente (función mejorada)
 function getClientIP(req) {
-  // Cloudflare, proxy inversos, etc.
+  // 1. Express con trust proxy ya calcula req.ip correctamente
+  //    tomando la primera IP de x-forwarded-for
+  // 2. Por si acaso, verificamos manualmente
   const forwarded = req.headers["x-forwarded-for"];
   if (forwarded) {
-    // Tomar la primera IP de la cadena (la del cliente real)
-    return forwarded.split(",")[0].trim();
+    // La primera IP de la cadena es la del cliente real
+    const ips = forwarded.split(",").map(s => s.trim());
+    const realIp = ips[0];
+    // Ignorar IPs privadas/internas (loopback, LAN)
+    if (realIp && realIp !== "127.0.0.1" && realIp !== "::1" && realIp !== "::ffff:127.0.0.1") {
+      return realIp;
+    }
   }
   const realIp = req.headers["x-real-ip"];
-  if (realIp) return realIp;
-  return req.ip || req.connection?.remoteAddress || "desconocida";
+  if (realIp && realIp !== "127.0.0.1" && realIp !== "::1") return realIp;
+  // Fallback: usar req.ip de Express (confía en trust proxy)
+  const expressIp = req.ip || req.connection?.remoteAddress || "desconocida";
+  // Si sigue siendo localhost y hay x-forwarded-for, devolver la primera IP aunque sea local
+  if ((expressIp === "127.0.0.1" || expressIp === "::1" || expressIp === "::ffff:127.0.0.1") && forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return expressIp;
 }
 
 app.use(cors({
