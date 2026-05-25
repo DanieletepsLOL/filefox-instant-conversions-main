@@ -270,9 +270,9 @@ function FormatPicker({
 export function UploadZone() {
   const [files, setFiles] = useState<UploadedFile[]>(() => {
     const stored = getStoredUploads();
-    // En la página principal solo mostramos archivos listos para convertir ("ready"),
-    // los convertidos ("done") se ven exclusivamente en /uploads
-    const valid = stored.filter((file) => file.status === "ready");
+    // Descartar archivos "converting" al recargar (perdieron el sourceFile y se quedarían colgados)
+    const valid = stored.filter((file) => file.status !== "converting");
+    saveUploads(valid);
     return valid.map((file) => {
       const kind = detectFileKind(file);
       return {
@@ -291,23 +291,17 @@ export function UploadZone() {
 
   const readyFiles = useMemo(() => files.filter((file) => file.status !== "done"), [files]);
 
-  // Sincronizar con localStorage: actualiza los archivos activos (ready/converting)
-  // pero conserva los "done" que ya están guardados para la página /uploads
   useEffect(() => {
-    const stored = getStoredUploads();
-    // Combinar: los que ya estaban en localStorage pero no en files (done) se conservan
-    const storedById = new Map(stored.map((s) => [s.id, s]));
-    for (const f of files) {
-      storedById.set(f.id, {
-        id: f.id,
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        status: f.status,
-        uploadedAt: f.uploadedAt,
-      });
-    }
-    saveUploads(Array.from(storedById.values()));
+    saveUploads(
+      files.map((file) => ({
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        status: file.status,
+        uploadedAt: file.uploadedAt,
+      }))
+    );
   }, [files]);
 
   const addFiles = useCallback((list: FileList | null) => {
@@ -466,8 +460,7 @@ export function UploadZone() {
         <p className="mt-4 text-xs text-muted-foreground">Tamaño máximo recomendado: 100MB por archivo</p>
       </div>
 
-      {/* Los archivos convertidos ("done") no se muestran aquí, van a /uploads */}
-      {files.filter(f => f.status !== "done").length > 0 && (
+      {files.length > 0 && (
         <div className="mt-6 rounded-2xl border bg-card shadow-[var(--shadow-card)] p-4 md:p-5 animate-[fade-up_0.4s_ease-out]">
           <div className="border-b pb-4">
             <h3 className="text-lg font-semibold tracking-tight">Panel de conversión</h3>
@@ -477,7 +470,7 @@ export function UploadZone() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {files.filter(f => f.status !== "done").map((file) => {
+            {files.map((file) => {
               const meta = fileKindMeta[file.kind];
               const Icon = meta.icon;
 
