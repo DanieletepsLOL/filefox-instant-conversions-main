@@ -365,10 +365,22 @@ export function UploadZone() {
         body.append("sourceFormat", file.sourceFormat);
         body.append("targetFormat", file.targetFormat);
 
-        const response = await fetch("/api/conversions", {
-          method: "POST",
-          body,
-        });
+        // Timeout inteligente: si el archivo es < 1MB, 15s; si no, 120s
+        const timeoutMs = file.size < 1_000_000 ? 15_000 : 120_000;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        let response;
+        try {
+          response = await fetch("/api/conversions", {
+            method: "POST",
+            body,
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
           const data = await response.json().catch(() => null);
@@ -400,7 +412,12 @@ export function UploadZone() {
       setFiles((prev) =>
         prev.map((file) => (file.status === "converting" ? { ...file, status: "ready", progress: 100 } : file))
       );
-      setError(conversionError instanceof Error ? conversionError.message : "No se pudo completar la conversión.");
+      let msg = conversionError instanceof Error ? conversionError.message : "No se pudo completar la conversión.";
+      // Si el error es por abort (timeout)
+      if (conversionError instanceof Error && conversionError.name === "AbortError") {
+        msg = "La conversión está tardando demasiado. Inténtalo de nuevo.";
+      }
+      setError(msg);
     } finally {
       setConverting(false);
     }
