@@ -37,11 +37,14 @@ echo "  ✅ Backend  corriendo en http://$(hostname -I | awk '{print $1}'):4000"
 echo "  ✅ Frontend corriendo en http://$(hostname -I | awk '{print $1}'):8080"
 echo ""
 echo "  📋 Panel admin:"
-echo "     http://$(hostname -I | awk '{print $1}'):4000/api/admin/stats"
-echo "     http://$(hostname -I | awk '{print $1}'):4000/api/admin/conversions"
-echo "     http://$(hostname -I | awk '{print $1}'):4000/api/admin/uploads"
-echo "     http://$(hostname -I | awk '{print $1}'):4000/api/admin/activity"
+echo "     Frontend:  http://$(hostname -I | awk '{print $1}'):8080/admin/login"
+echo "     Stats:     http://$(hostname -I | awk '{print $1}'):4000/api/admin/stats"
+echo "     Correo:    admin@filefoxadmins.com"
 echo ""
+echo "  🔑 Generar token de admin:"
+echo "     sudo bash backend/generate-admin-token.sh"
+echo ""
+
 echo "  Presiona CTRL+C para detener ambos servicios"
 echo "============================================"
 
@@ -49,3 +52,4 @@ echo "============================================"
 trap "echo ''; echo 'Deteniendo servicios...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; wait; echo '✅ Servicios detenidos.'; exit 0" SIGINT SIGTERM
 
 wait
+

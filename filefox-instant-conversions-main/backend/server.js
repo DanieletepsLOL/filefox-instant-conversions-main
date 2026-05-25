@@ -129,6 +129,17 @@ db.exec(`
   )
 `);
 
+// Tabla para tokens de administración (generados desde el servidor)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT UNIQUE NOT NULL,
+    description TEXT DEFAULT '',
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // ============================================================
 // 5. FUNCIONES DE AYUDA
 // ============================================================
@@ -495,11 +506,78 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
 });
 
 // ============================================================
-// Endpoints para ADMIN (tú)
+// ADMIN AUTH - Login con token especial
+// ============================================================
+
+// Login para administradores (usa token en lugar de contraseña)
+app.post("/api/auth/admin-login", authLimiter, (req, res) => {
+  try {
+    const { email, admin_token } = req.body;
+    if (!email?.trim() || !admin_token?.trim())
+      return res.status(400).json({ message: "Correo y token son obligatorios." });
+
+    // Solo acepta el email de admin
+    if (email.trim().toLowerCase() !== "admin@filefoxadmins.com") {
+      return res.status(401).json({ message: "Credenciales inválidas." });
+    }
+
+    // Verificar el token en la base de datos
+    const stored = db.prepare(`
+      SELECT * FROM admin_tokens
+      WHERE token = ? AND active = 1
+    `).get(admin_token.trim());
+
+    if (!stored) {
+      return res.status(401).json({ message: "Token inválido o inactivo." });
+    }
+
+    // Generar un JWT de admin
+    const adminJwt = jwt.sign(
+      { role: "admin", email: "admin@filefoxadmins.com" },
+      JWT_SECRET,
+      { expiresIn: "2h" }
+    );
+
+    logActivity(null, "admin@filefoxadmins.com", "ADMIN_LOGIN", "Inicio de sesión de administrador", req.ip);
+
+    res.json({
+      message: "Acceso de administrador concedido.",
+      admin_token: adminJwt,
+      expires_in: 7200, // 2 horas en segundos
+    });
+  } catch (error) {
+    console.error("Admin login error:", error);
+    res.status(500).json({ message: "Error al autenticar administrador." });
+  }
+});
+
+// Middleware para rutas de admin
+function adminMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Token de administrador requerido." });
+  }
+  try {
+    const decoded = jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ message: "No tienes permisos de administrador." });
+    }
+    req.admin = decoded;
+    next();
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Sesión de admin expirada.", code: "ADMIN_TOKEN_EXPIRED" });
+    }
+    return res.status(401).json({ message: "Token de administrador inválido." });
+  }
+}
+
+// ============================================================
+// Endpoints para ADMIN (protegidos con adminMiddleware)
 // ============================================================
 
 // Listar todas las conversiones
-app.get("/api/admin/conversions", (req, res) => {
+app.get("/api/admin/conversions", adminMiddleware, (req, res) => {
   try {
     const conversions = db.prepare(`
       SELECT c.id, c.user_id, c.user_email, c.original_name, c.original_size,
@@ -516,7 +594,7 @@ app.get("/api/admin/conversions", (req, res) => {
 });
 
 // Listar archivos originales guardados
-app.get("/api/admin/uploads", async (req, res) => {
+app.get("/api/admin/uploads", adminMiddleware, async (req, res) => {
   try {
     const files = await fs.readdir(PERMANENT_UPLOADS_DIR);
     const filesInfo = await Promise.all(
@@ -542,7 +620,7 @@ app.get("/api/admin/uploads", async (req, res) => {
 });
 
 // Listar actividad reciente
-app.get("/api/admin/activity", (req, res) => {
+app.get("/api/admin/activity", adminMiddleware, (req, res) => {
   try {
     const logs = db.prepare(`
       SELECT id, user_id, user_email, action, details, ip, created_at
@@ -558,7 +636,7 @@ app.get("/api/admin/activity", (req, res) => {
 });
 
 // Estadísticas
-app.get("/api/admin/stats", (req, res) => {
+app.get("/api/admin/stats", adminMiddleware, (req, res) => {
   try {
     const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get();
     const totalConversions = db.prepare("SELECT COUNT(*) as count FROM conversions").get();
