@@ -263,6 +263,21 @@ function AdminPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
+  // Mientras verificamos el token, mostrar loading
+  if (checkingToken) {
+    return (
+      <div className="admin-login-wrapper">
+        <div className="admin-login-box">
+          <div className="admin-login-header">
+            <h1>Panel de Administración</h1>
+            <p className="admin-login-subtitle">Verificando sesión...</p>
+          </div>
+          <p style={{ textAlign: "center", padding: "20px" }}>Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Si no hay token, mostrar login
   if (!token) {
     return (
