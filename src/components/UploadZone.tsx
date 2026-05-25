@@ -270,9 +270,8 @@ function FormatPicker({
 export function UploadZone() {
   const [files, setFiles] = useState<UploadedFile[]>(() => {
     const stored = getStoredUploads();
-    // Solo mostrar archivos pendientes ("ready") en la página principal.
-    // Los convertidos ("done") y "converting" huérfanos se filtran aquí,
-    // pero NO se eliminan del localStorage para que aparezcan en /uploads.
+    // En la página principal solo mostramos archivos listos para convertir ("ready"),
+    // los convertidos ("done") se ven exclusivamente en /uploads
     const valid = stored.filter((file) => file.status === "ready");
     return valid.map((file) => {
       const kind = detectFileKind(file);
@@ -292,12 +291,12 @@ export function UploadZone() {
 
   const readyFiles = useMemo(() => files.filter((file) => file.status !== "done"), [files]);
 
-  // Sincronizar cambios al localStorage: mantiene los archivos "done"
-  // que ya no están en el state de UploadZone (porque se movieron a /uploads)
+  // Sincronizar con localStorage: actualiza los archivos activos (ready/converting)
+  // pero conserva los "done" que ya están guardados para la página /uploads
   useEffect(() => {
     const stored = getStoredUploads();
+    // Combinar: los que ya estaban en localStorage pero no en files (done) se conservan
     const storedById = new Map(stored.map((s) => [s.id, s]));
-    // Actualizar con los archivos activos (ready/converting)
     for (const f of files) {
       storedById.set(f.id, {
         id: f.id,
@@ -406,28 +405,15 @@ export function UploadZone() {
         }
 
         const downloadUrl = URL.createObjectURL(blob);
-        // Una vez convertido, lo eliminamos de la vista principal
-        // pero lo guardamos en localStorage como "done" para /uploads
-        setFiles((prev) => {
-          const next = prev.filter((item) => item.id !== file.id);
-          // Guardar en localStorage como "done" para que aparezca en /uploads
-          const doneEntry: StoredUploadedFile = {
-            id: file.id,
-            name: downloadFilename,
-            size: blob.size,
-            type: file.targetFormat.toLowerCase(),
-            status: "done",
-            uploadedAt: file.uploadedAt,
-          };
-          const stored = getStoredUploads();
-          const existingIds = new Set(stored.map((s) => s.id));
-          if (!existingIds.has(file.id)) {
-            saveUploads([...stored, doneEntry]);
-          } else {
-            saveUploads(stored.map((s) => (s.id === file.id ? doneEntry : s)));
-          }
-          return next;
-        });
+        // Marcar como "done" para que no aparezca más en la página principal
+        // pero se guarde en localStorage para la sección /uploads
+        setFiles((prev) =>
+          prev.map((item) =>
+            item.id === file.id
+              ? { ...item, status: "done", progress: 100, downloadUrl, downloadFilename }
+              : item
+          )
+        );
       }
     } catch (conversionError) {
       setFiles((prev) =>
@@ -480,6 +466,7 @@ export function UploadZone() {
         <p className="mt-4 text-xs text-muted-foreground">Tamaño máximo recomendado: 100MB por archivo</p>
       </div>
 
+      {/* Los archivos convertidos ("done") no se muestran aquí, van a /uploads */}
       {files.filter(f => f.status !== "done").length > 0 && (
         <div className="mt-6 rounded-2xl border bg-card shadow-[var(--shadow-card)] p-4 md:p-5 animate-[fade-up_0.4s_ease-out]">
           <div className="border-b pb-4">
