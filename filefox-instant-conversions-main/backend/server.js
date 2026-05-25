@@ -24,11 +24,15 @@ app.use(cors({ origin: true }));
 app.use(express.json());
 
 // ============================================================
-// Base de datos SQLite + Autenticación
+// Configuración de carpetas
 // ============================================================
 const JWT_SECRET = process.env.JWT_SECRET || "filefox-secret-" + crypto.randomBytes(16).toString("hex");
 const DATA_DIR = path.join(os.tmpdir(), "filefox-data");
 const dbPath = path.join(DATA_DIR, "filefox.db");
+
+// Carpeta permanente para guardar los archivos originales subidos
+const PERMANENT_UPLOADS_DIR = "/var/filefox/uploads";
+await fs.mkdir(PERMANENT_UPLOADS_DIR, { recursive: true }).catch(() => {});
 
 await fs.mkdir(DATA_DIR, { recursive: true }).catch(() => {});
 const db = new Database(dbPath);
@@ -41,6 +45,22 @@ db.exec(`
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+// Tabla para historial de conversiones (para que tú puedas ver lo que se subió)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_email TEXT,
+    original_name TEXT NOT NULL,
+    original_size INTEGER NOT NULL,
+    source_format TEXT NOT NULL,
+    target_format TEXT NOT NULL,
+    status TEXT DEFAULT 'completed',
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id)
   )
 `);
 
@@ -226,6 +246,12 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
   }
 
   try {
+    // Guardar el archivo original en la carpeta permanente
+    const originalExt = path.extname(uploadedFile.originalname);
+    const permanentFileName = `${Date.now()}-${crypto.randomUUID()}${originalExt}`;
+    const permanentPath = path.join(PERMANENT_UPLOADS_DIR, permanentFileName);
+    await fs.copyFile(uploadedFile.path, permanentPath);
+
     await fs.mkdir(outputDir, { recursive: true });
     const kind = sourceKind || detectSourceKind(uploadedFile.originalname);
     let outputPath;
@@ -248,6 +274,14 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
       throw new Error("Tipo de archivo no soportado.");
     }
 
+    // Guardar registro en la base de datos
+    const userEmail = req.user?.email || "anónimo";
+    const userId = req.user?.id || null;
+    db.prepare(`
+      INSERT INTO conversions (user_id, user_email, original_name, original_size, source_format, target_format)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(userId, userEmail, uploadedFile.originalname, uploadedFile.size, originalExt.replace(".", ""), targetFormat);
+
     const downloadName = `${path.parse(uploadedFile.originalname).name}.${outputExtension(targetFormat)}`;
     res.download(outputPath, downloadName, async () => {
       await fs.rm(outputDir, { recursive: true, force: true });
@@ -258,6 +292,52 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
     await fs.rm(uploadedFile.path, { force: true }).catch(() => {});
     console.error("Conversion error:", error);
     res.status(500).json({ message: "No se pudo convertir el archivo en el servidor." });
+  }
+});
+
+// ============================================================
+// Endpoints para que TÚ puedas ver los archivos subidos
+// ============================================================
+
+// Listar todas las conversiones registradas (solo para admin)
+app.get("/api/admin/conversions", (req, res) => {
+  try {
+    const conversions = db.prepare(`
+      SELECT id, user_id, user_email, original_name, original_size, source_format, target_format, status, created_at
+      FROM conversions
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all();
+    res.json({ conversions });
+  } catch (error) {
+    console.error("Error fetching conversions:", error);
+    res.status(500).json({ message: "Error al obtener el historial." });
+  }
+});
+
+// Listar archivos originales guardados permanentemente
+app.get("/api/admin/uploads", async (req, res) => {
+  try {
+    const files = await fs.readdir(PERMANENT_UPLOADS_DIR);
+    const filesInfo = await Promise.all(
+      files.map(async (filename) => {
+        const filePath = path.join(PERMANENT_UPLOADS_DIR, filename);
+        try {
+          const stat = await fs.stat(filePath);
+          return {
+            name: filename,
+            size: stat.size,
+            created_at: stat.birthtime || stat.mtime,
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+    res.json({ files: filesInfo.filter(Boolean).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) });
+  } catch (error) {
+    console.error("Error listing uploads:", error);
+    res.status(500).json({ message: "Error al listar archivos." });
   }
 });
 
