@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
@@ -460,19 +461,50 @@ function run(command, args, options = {}, timeoutMs = 60000) {
 }
 
 function findCommand(cmd) {
-
+  if (process.platform !== "win32" && cmd === "magick") return "convert";
   return cmd;
 }
 
 async function convertImage(inputPath, outputPath, targetFormat, fileSize) {
   const timeout = fileSize < 1_000_000 ? 15000 : 120000;
 
-const args = [
-  inputPath,
-  "-auto-orient"
-];
+  // ICO: usar Pillow (Python) porque ImageMagick es muy lento con este formato
+  if (targetFormat === "ICO") {
+    await run("python3", ["-c", `
+from PIL import Image
+import sys
+img = Image.open("${inputPath}")
+# Si tiene transparencia (RGBA), la convertimos a RGB para ICO
+if img.mode == "RGBA":
+    img = img.convert("RGBA")
+img.save("${outputPath}", format="ICO")
+print("OK")
+    `], {}, timeout);
+    return;
+  }
 
-  // ICO fix
+  // DESDE .ico a otro formato: usar Pillow
+  if (inputPath.toLowerCase().endsWith(".ico")) {
+    await run("python3", ["-c", `
+from PIL import Image
+import sys
+img = Image.open("${inputPath}")
+# ICO suele venir en RGBA, convertir a RGB si el destino no soporta transparencia
+target = "${targetFormat}".lower()
+if target in ("jpg", "jpeg", "bmp"):
+    img = img.convert("RGB")
+img.save("${outputPath}")
+print("OK")
+    `], {}, timeout);
+    return;
+  }
+
+  // El resto de imágenes con ImageMagick (como antes)
+  const args = [
+    inputPath,
+    "-auto-orient"
+  ];
+
   if (targetFormat === "ICO") {
     args.push(
       "-resize", "256x256",
@@ -480,10 +512,9 @@ const args = [
     );
   }
 
-  // OUTPUT SIEMPRE AL FINAL
   args.push(outputPath);
 
-  await run(findCommand("magick"), args, {}, timeout);
+  await run(findCommand("convert"), args, {}, timeout);
 }
 
 async function convertMedia(inputPath, outputPath) {
