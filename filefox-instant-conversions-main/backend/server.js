@@ -286,16 +286,10 @@ async function convertArchive(inputPath, outputPath, outputDir, targetFormat) {
   }
 
   // Para 7Z, ZIP y otros formatos usamos 7-Zip
-  // 7z a no acepta la ruta completa como nombre de archivo en Windows si no existe el directorio
-  // así que primero creamos el archivo en extractDir y luego lo movemos
-  const tempName = `temp-archive.${outputExtension(targetFormat)}`;
-  const tempPath = path.join(extractDir, tempName);
-  
-  // Ejecutamos 7z desde el directorio extractDir
-  await run(SEVEN_ZIP, ["a", tempName, "*", `-t${targetFormat.toLowerCase()}`], { cwd: extractDir });
-  
-  // Movemos el archivo a la ubicación final
-  await fs.rename(tempPath, outputPath);
+  // Ejecutamos 7z directamente en el directorio de salida
+  const outDir = path.dirname(outputPath);
+  const outName = path.basename(outputPath);
+  await run(SEVEN_ZIP, ["a", outName, `${extractDir}${path.sep}.`, `-t${outputExtension(targetFormat)}`], { cwd: outDir });
 }
 
 async function convertFile({ inputPath, outputDir, sourceKind, targetFormat }) {
