@@ -7,9 +7,11 @@ import { isAuthenticated, loginUser } from "@/lib/auth";
 
 type RegisterResponse = {
   message?: string;
-  token?: string;
+  access_token?: string;
+  refresh_token?: string;
   user?: {
     email?: string;
+    name?: string;
   };
 };
 
@@ -79,7 +81,12 @@ function Register() {
         return;
       }
 
-      loginUser(data?.user?.email ?? email.trim(), data?.token);
+      loginUser(
+        data?.user?.email ?? email.trim(),
+        data?.user?.name ?? name.trim(),
+        data?.access_token ?? "",
+        data?.refresh_token ?? ""
+      );
       router.navigate({ to: "/dashboard" });
     } catch {
       setError("No se pudo conectar con el servidor. Inténtalo de nuevo.");
