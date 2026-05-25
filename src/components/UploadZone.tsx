@@ -33,6 +33,7 @@ type UploadedFile = StoredUploadedFile & {
   targetFormat: string;
   sourceFile?: File;
   downloadUrl?: string;
+  downloadFilename?: string;
 };
 
 const fileKindMeta: Record<FileKind, { label: string; icon: LucideIcon }> = {
@@ -375,9 +376,24 @@ export function UploadZone() {
         }
 
         const blob = await response.blob();
+
+        // Extraer el nombre del archivo del header Content-Disposition
+        const disposition = response.headers.get("Content-Disposition");
+        let downloadFilename = file.name.replace(/\.[^.]+$/, "") + "." + file.targetFormat.toLowerCase();
+        if (disposition) {
+          const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+          if (match?.[1]) {
+            downloadFilename = match[1].replace(/['"]/g, "").trim();
+          }
+        }
+
         const downloadUrl = URL.createObjectURL(blob);
         setFiles((prev) =>
-          prev.map((item) => (item.id === file.id ? { ...item, status: "done", progress: 100, downloadUrl } : item))
+          prev.map((item) =>
+            item.id === file.id
+              ? { ...item, status: "done", progress: 100, downloadUrl, downloadFilename }
+              : item
+          )
         );
       }
     } catch (conversionError) {
@@ -461,13 +477,18 @@ export function UploadZone() {
                   <div className="flex justify-end gap-2">
                     {file.status === "done" && file.downloadUrl ? (
                       <Button asChild size="sm" variant="outline" className="rounded-full">
-                        <a href={file.downloadUrl} download>
+
+                        <a href={file.downloadUrl} download={file.downloadFilename}>
                           <Download className="h-4 w-4" /> Descargar
                         </a>
                       </Button>
                     ) : file.status === "done" ? (
                       <span className="inline-flex items-center gap-1 rounded-full border px-3 py-2 text-xs text-success">
                         <CheckCircle2 className="h-3.5 w-3.5" /> Convertido
+                      </span>
+                    ) : file.status === "converting" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border px-3 py-2 text-xs text-muted-foreground">
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" /> Convirtiendo
                       </span>
                     ) : (
                       <button
