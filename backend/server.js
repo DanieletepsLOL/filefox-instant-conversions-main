@@ -44,18 +44,24 @@ function getClientIP(req) {
     const realIp = ips[0];
     // Ignorar IPs privadas/internas (loopback, LAN)
     if (realIp && realIp !== "127.0.0.1" && realIp !== "::1" && realIp !== "::ffff:127.0.0.1") {
-      return realIp;
+      return cleanIp(realIp);
     }
   }
   const realIp = req.headers["x-real-ip"];
-  if (realIp && realIp !== "127.0.0.1" && realIp !== "::1") return realIp;
+  if (realIp && realIp !== "127.0.0.1" && realIp !== "::1") return cleanIp(realIp);
   // Fallback: usar req.ip de Express (confía en trust proxy)
   const expressIp = req.ip || req.connection?.remoteAddress || "desconocida";
   // Si sigue siendo localhost y hay x-forwarded-for, devolver la primera IP aunque sea local
   if ((expressIp === "127.0.0.1" || expressIp === "::1" || expressIp === "::ffff:127.0.0.1") && forwarded) {
-    return forwarded.split(",")[0].trim();
+    return cleanIp(forwarded.split(",")[0].trim());
   }
-  return expressIp;
+  return cleanIp(expressIp);
+}
+
+// Limpiar formato IPv6 mapeado (::ffff:192.168.x.x → 192.168.x.x)
+function cleanIp(ip) {
+  if (!ip) return ip;
+  return ip.replace(/^::ffff:/, '');
 }
 
 app.use(cors({
@@ -410,7 +416,7 @@ function normalizeFormat(format) {
 }
 
 function outputExtension(format) {
-  return format.toLowerCase().replace(".", ".");
+  return format.toLowerCase();
 }
 
 function run(command, args, options = {}) {
@@ -545,6 +551,7 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
     logActivity(userId, userEmail, "CONVERSION", `${uploadedFile.originalname} → ${targetFormat}`, getClientIP(req));
 
     const downloadName = `${path.parse(uploadedFile.originalname).name}.${outputExtension(targetFormat)}`;
+    console.log(`📥 Descargando: outputPath=${outputPath}, downloadName=${downloadName}`);
     res.download(outputPath, downloadName, async () => {
       await fs.rm(outputDir, { recursive: true, force: true });
       await fs.rm(uploadedFile.path, { force: true });
@@ -552,7 +559,7 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
   } catch (error) {
     await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
     await fs.rm(uploadedFile.path, { force: true }).catch(() => {});
-    console.error("Conversion error:", error);
+    console.error("❌ Conversion error:", error);
     res.status(500).json({ message: "No se pudo convertir el archivo en el servidor." });
   }
 });
