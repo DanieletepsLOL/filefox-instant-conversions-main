@@ -290,8 +290,6 @@ export function UploadZone() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const readyFiles = useMemo(() => files.filter((file) => file.status !== "done"), [files]);
-  // Los archivos "done" se ocultan automáticamente de la vista principal
-  const visibleFiles = useMemo(() => files.filter((file) => file.status !== "done"), [files]);
 
   useEffect(() => {
     saveUploads(
@@ -470,7 +468,7 @@ export function UploadZone() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {visibleFiles.map((file) => {
+            {files.map((file) => {
               const meta = fileKindMeta[file.kind];
               const Icon = meta.icon;
 
