@@ -52,9 +52,9 @@ export function Header() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-          <a href="#converter" className="text-muted-foreground hover:text-foreground transition-colors">Converter</a>
-          <a href="#tools" className="text-muted-foreground hover:text-foreground transition-colors">Tools</a>
-          <Link to="/uploads" className="text-muted-foreground hover:text-foreground transition-colors">Últimas subidas</Link>
+          <Link to="/" hash="converter" className="text-muted-foreground hover:text-foreground transition-colors">Converter</Link>
+          <Link to="/" hash="tools" className="text-muted-foreground hover:text-foreground transition-colors">Tools</Link>
+          <Link to="/uploads" className="text-muted-foreground hover:text-foreground transition-colors">Files</Link>
         </nav>
 
         {loggedIn ? (
@@ -80,10 +80,10 @@ export function Header() {
                   <Link to="/settings" className="option-item">
                     <span>Configuración</span>
                   </Link>
-                  <Link to="/login" className="option-item download-app">
+                  <button type="button" onClick={handleLogout} className="option-item download-app w-full text-left">
                     <span>Cerrar Sesión</span>
                     <ArrowRight className="option-icon" />
-                  </Link>
+                  </button>
                 </div>
                 <div className="login-footer">
                   <button type="button" className="footer-link">Política de Privacidad</button>

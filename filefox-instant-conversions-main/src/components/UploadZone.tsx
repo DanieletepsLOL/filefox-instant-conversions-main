@@ -267,18 +267,23 @@ function FormatPicker({
 }
 
 export function UploadZone() {
-  const [files, setFiles] = useState<UploadedFile[]>(() =>
-    getStoredUploads().map((file) => {
+  const [files, setFiles] = useState<UploadedFile[]>(() => {
+    const stored = getStoredUploads();
+    // Al recargar la página, solo conservamos archivos en medio de conversión.
+    // Los "ready" perdieron el archivo físico y los "done" perdieron el blob URL.
+    const valid = stored.filter((file) => file.status === "converting");
+    saveUploads(valid);
+    return valid.map((file) => {
       const kind = detectFileKind(file);
       return {
         ...file,
         kind,
         sourceFormat: labelSourceFormat(file),
         targetFormat: defaultTarget(kind),
-        progress: file.status === "done" ? 100 : 100,
+        progress: 100,
       };
-    })
-  );
+    });
+  });
   const [dragging, setDragging] = useState(false);
   const [converting, setConverting] = useState(false);
   const [error, setError] = useState("");
