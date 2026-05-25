@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import "./admin.css";
@@ -60,7 +60,7 @@ interface Stats {
 }
 
 function AdminPage() {
-  const [token, setToken] = useState<string>(() => localStorage.getItem("admin_token") || "");
+  const [token, setToken] = useState<string>("");
   const [email, setEmail] = useState("");
   const [adminTokenInput, setAdminTokenInput] = useState("");
   const [error, setError] = useState("");
@@ -79,6 +79,14 @@ function AdminPage() {
   const [resetPassMsg, setResetPassMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
+
+  // Cargar token desde localStorage solo en cliente
+  useEffect(() => {
+    const saved = localStorage.getItem('admin_token') || '';
+    if (saved) {
+      setToken(saved);
+    }
+  }, []);
 
   // Verificar si ya hay token al cargar
   useEffect(() => {
