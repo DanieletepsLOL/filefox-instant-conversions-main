@@ -495,25 +495,32 @@ async function convertImage(inputPath, outputPath, targetFormat, fileSize, origi
   await run(findCommand("convert"), args, {}, timeout);
 }
 
+// Añade un timeout explícito para que FFmpeg no deje colgado el servidor
 async function convertMedia(inputPath, outputPath) {
   await run("ffmpeg", [
     "-y",
     "-i", inputPath,
     outputPath
-  ]);
+  ], {}, 120000); // Límite de 2 minutos para procesamiento multimedia
 }
 async function convertDocument(inputPath, outputDir, targetFormat) {
   await run("libreoffice", ["--headless", "--convert-to", targetFormat.toLowerCase(), "--outdir", outputDir, inputPath]);
-const files = await fs.readdir(outputDir);
 
-const match = files
-  .map(f => path.join(outputDir, f))
-  .map(f => ({ file: f, time: fs.statSync(f).mtimeMs }))
-  .sort((a, b) => b.time - a.time)[0]?.file;
+  const files = await fs.readdir(outputDir);
 
-if (!match) throw new Error("LibreOffice no generó el archivo esperado.");
+  // Corrección crítica: Mapeo asíncrono puro para evitar la caída por fs.statSync
+  const filesWithStats = await Promise.all(
+    files.map(async (f) => {
+      const fullPath = path.join(outputDir, f);
+      const stat = await fs.stat(fullPath); // correcto usando fs/promises de forma asíncrona
+      return { file: fullPath, time: stat.mtimeMs };
+    })
+  );
 
-return match;
+  const match = filesWithStats.sort((a, b) => b.time - a.time)[0]?.file;
+  if (!match) throw new Error("LibreOffice no generó el archivo esperado.");
+
+  return match;
 }
 
 const SEVEN_ZIP = "7z";

@@ -291,18 +291,8 @@ export function UploadZone() {
 
   const readyFiles = useMemo(() => files.filter((file) => file.status !== "done"), [files]);
 
-  useEffect(() => {
-    saveUploads(
-      files.map((file) => ({
-        id: file.id,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        status: file.status,
-        uploadedAt: file.uploadedAt,
-      }))
-    );
-  }, [files]);
+  // ✅ Eliminamos el useEffect que sincronizaba localStorage (causaba pérdida de downloadUrl)
+  // Ahora guardamos en localStorage de forma síncrona dentro del callback de setFiles en convert()
 
   const addFiles = useCallback((list: FileList | null) => {
     if (!list) return;
@@ -352,6 +342,8 @@ export function UploadZone() {
 
     setError("");
     setConverting(true);
+
+    // 1. Pasamos todos los archivos pendientes a estado de conversión
     setFiles((prev) =>
       prev.map((file) => (file.status === "done" ? file : { ...file, status: "converting", progress: 20 }))
     );
@@ -364,9 +356,7 @@ export function UploadZone() {
         body.append("sourceFormat", file.sourceFormat);
         body.append("targetFormat", file.targetFormat);
 
-        // Timeout inteligente: si el archivo es < 1MB, 15s; si no, 120s
         const timeoutMs = file.size < 1_000_000 ? 15_000 : 120_000;
-
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -388,7 +378,6 @@ export function UploadZone() {
 
         const blob = await response.blob();
 
-        // Extraer el nombre del archivo del header Content-Disposition
         const disposition = response.headers.get("Content-Disposition");
         let downloadFilename = file.name.replace(/\.[^.]+$/, "") + "." + file.targetFormat.toLowerCase();
         if (disposition) {
@@ -399,15 +388,35 @@ export function UploadZone() {
         }
 
         const downloadUrl = URL.createObjectURL(blob);
-        // Marcar como "done" para que no aparezca más en la página principal
-        // pero se guarde en localStorage para la sección /uploads
-        setFiles((prev) =>
-          prev.map((item) =>
+
+        // 2. DISPARAR DESCARGA AUTOMÁTICA EN EL NAVEGADOR
+        const triggerLink = document.createElement("a");
+        triggerLink.href = downloadUrl;
+        triggerLink.download = downloadFilename;
+        document.body.appendChild(triggerLink);
+        triggerLink.click();
+        document.body.removeChild(triggerLink);
+
+        // 3. ACTUALIZAR ESTADO REACTIVO Y PERSISTIR DE FORMA SEGURA
+        setFiles((prev) => {
+          const updated = prev.map((item) =>
             item.id === file.id
-              ? { ...item, status: "done", progress: 100, downloadUrl, downloadFilename }
+              ? { ...item, status: "done" as const, progress: 100, downloadUrl, downloadFilename }
               : item
-          )
-        );
+          );
+          // Sincronización limpia con localStorage guardando el nuevo nombre del archivo convertido
+          saveUploads(
+            updated.map((u) => ({
+              id: u.id,
+              name: u.downloadFilename || u.name,
+              size: u.size,
+              type: u.type,
+              status: u.status,
+              uploadedAt: u.uploadedAt,
+            }))
+          );
+          return updated;
+        });
       }
     } catch (conversionError) {
       setFiles((prev) =>
