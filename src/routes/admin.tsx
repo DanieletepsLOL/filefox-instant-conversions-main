@@ -264,65 +264,14 @@ function AdminPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
-  // Mientras verificamos el token, mostrar loading
-  if (checkingToken) {
-    return (
-      <div className="admin-login-wrapper">
-        <div className="admin-login-box">
-          <div className="admin-login-header">
-            <h1>Panel de Administración</h1>
-            <p className="admin-login-subtitle">Verificando sesión...</p>
-          </div>
-          <p style={{ textAlign: "center", padding: "20px" }}>Cargando...</p>
-        </div>
-      </div>
-    );
-  }
+  // Si no hay token, redirigir a /login (solo en cliente)
+  useEffect(() => {
+    if (!token && typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+  }, [token]);
 
-  // Si no hay token, mostrar login
-  if (!token) {
-    return (
-      <div className="admin-login-wrapper">
-        <div className="admin-login-box">
-          <div className="admin-login-header">
-            <h1>Panel de Administración</h1>
-            <p className="admin-login-subtitle">Filefox Instant Conversions</p>
-          </div>
-          <form onSubmit={handleLogin} className="admin-login-form">
-            <div className="form-group">
-              <label htmlFor="admin-email">Correo de administrador</label>
-              <input
-                id="admin-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@filefoxadmins.com"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="admin-token">Token de administración</label>
-              <input
-                id="admin-token"
-                type="password"
-                value={adminTokenInput}
-                onChange={(e) => setAdminTokenInput(e.target.value)}
-                placeholder="Introduce el token"
-                required
-              />
-            </div>
-            {error && <p className="admin-error">{error}</p>}
-            <button type="submit" className="admin-btn admin-btn-primary" disabled={loading}>
-              {loading ? "Autenticando..." : "Acceder al panel"}
-            </button>
-          </form>
-          <Link to="/" className="admin-back-link">← Volver al inicio</Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Panel principal con sidebar vertical
+// Panel principal con sidebar vertical
   const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: "dashboard", label: "Panel", icon: "📊" },
     { id: "users", label: "Usuarios", icon: "👥" },
