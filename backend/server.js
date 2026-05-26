@@ -97,14 +97,23 @@ app.use("/api", generalLimiter);
 // ============================================================
 const JWT_SECRET = process.env.JWT_SECRET || "filefox-secret-fijo-para-dev";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "filefox-refresh-" + "filefox-secret-fijo-para-dev";
-const DATA_DIR = path.join(os.tmpdir(), "filefox-data");
+// Directorio raíz de datos (cámbialo a donde quieras en tu servidor)
+// En producción, usa una ruta fija como /var/filefox/data
+// Para desarrollo/local, puedes dejarlo en ./data dentro del proyecto
+const DATA_DIR = process.env.FILEFOX_DATA_DIR || path.join(__dirname, "..", "data");
 const dbPath = path.join(DATA_DIR, "filefox.db");
 
 // Carpeta permanente para guardar los archivos originales subidos
-const PERMANENT_UPLOADS_DIR = "/var/filefox/uploads";
-await fs.mkdir(PERMANENT_UPLOADS_DIR, { recursive: true }).catch((err) => {
-  console.error("No se pudo crear /var/filefox/uploads:", err.message);
-});
+let PERMANENT_UPLOADS_DIR = process.env.FILEFOX_UPLOADS_DIR || "/var/filefox/uploads";
+try {
+  await fs.mkdir(PERMANENT_UPLOADS_DIR, { recursive: true });
+} catch (err) {
+  console.error("No se pudo crear", PERMANENT_UPLOADS_DIR, ":", err.message);
+  // Fallback a un directorio local si no se puede crear
+  PERMANENT_UPLOADS_DIR = path.join(DATA_DIR, "uploads");
+  console.log("Usando fallback:", PERMANENT_UPLOADS_DIR);
+  await fs.mkdir(PERMANENT_UPLOADS_DIR, { recursive: true }).catch(() => {});
+}
 
 // Carpeta temporal para archivos convertidos disponibles por 1 hora
 const TEMP_FILES_DIR = path.join(os.tmpdir(), "filefox-temp");
