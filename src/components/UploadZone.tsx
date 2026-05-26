@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { addStoredUploads, getStoredUploads, saveUploads, StoredUploadedFile } from "@/lib/uploads";
+import { getAccessToken } from "@/lib/auth";
 
 type FileKind = "image" | "video" | "audio" | "document" | "text" | "archive" | "unknown";
 
@@ -366,10 +367,18 @@ export function UploadZone() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+        // Si el usuario está autenticado, enviamos el token JWT
+        const headers: Record<string, string> = {};
+        const token = getAccessToken();
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
         let response;
         try {
           response = await fetch("/api/conversions", {
             method: "POST",
+            headers,
             body,
             signal: controller.signal,
           });

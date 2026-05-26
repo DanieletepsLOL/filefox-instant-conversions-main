@@ -571,10 +571,23 @@ async function convertArchive(inputPath, outputPath, outputDir, targetFormat) {
   await run(SEVEN_ZIP, ["a", outName, `${extractDir}${path.sep}.`, `-t${outputExtension(targetFormat)}`], { cwd: outDir });
 }
 
+// Middleware de autenticación opcional (no bloquea si no hay token)
+function optionalAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    try {
+      req.user = jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
+    } catch {
+      // Token inválido o expirado → simplemente lo tratamos como anónimo
+    }
+  }
+  next();
+}
+
 // ============================================================
 // Endpoint principal de conversión
 // ============================================================
-app.post("/api/conversions", upload.single("file"), async (req, res) => {
+app.post("/api/conversions", optionalAuth, upload.single("file"), async (req, res) => {
   const uploadedFile = req.file;
   const sourceKind = String(req.body.sourceKind ?? "");
   const targetFormat = normalizeFormat(req.body.targetFormat);
