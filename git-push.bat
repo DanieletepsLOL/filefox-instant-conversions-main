@@ -2,5 +2,5 @@
 git add .
 git commit -m "Fix admin.tsx and stabilize agent behavior"
 git push origin main
-echo ✅ Push completado y todo bien
+echo ✅ Push completado y todo biennn
 pause
