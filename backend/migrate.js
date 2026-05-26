@@ -12,7 +12,7 @@ function ensureMigrationsTable(db) {
     CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT UNIQUE NOT NULL,
-      applied_at TEXT DEFAULT (datetime('now'))
+      applied_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
   `);
 }
@@ -57,7 +57,7 @@ const migrations = [
           token TEXT UNIQUE NOT NULL,
           description TEXT DEFAULT '',
           active INTEGER DEFAULT 1,
-          created_at TEXT DEFAULT (datetime('now'))
+          created_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
       `);
     },

@@ -153,7 +153,7 @@ db.exec(`
     conversions_today INTEGER DEFAULT 0,
     last_conversion_date TEXT,
     total_conversions INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
     updated_at TEXT,
     last_login_ip TEXT,
     last_login_at TEXT,
@@ -171,7 +171,7 @@ db.exec(`
     user_id INTEGER NOT NULL,
     token TEXT UNIQUE NOT NULL,
     expires_at TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )
 `);
@@ -188,7 +188,7 @@ db.exec(`
     status TEXT DEFAULT 'completed',
     download_count INTEGER DEFAULT 0,
     ip TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
 `);
@@ -201,7 +201,7 @@ db.exec(`
     action TEXT NOT NULL,
     details TEXT,
     ip TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
 `);
@@ -216,7 +216,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     token TEXT UNIQUE NOT NULL,
     active INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
   )
 `);
 
@@ -253,7 +253,7 @@ function generateRefreshToken(userId) {
 }
 
 function cleanExpiredRefreshTokens() {
-  db.prepare("DELETE FROM refresh_tokens WHERE expires_at < datetime('now')").run();
+  db.prepare("DELETE FROM refresh_tokens WHERE expires_at < datetime('now', 'localtime')").run();
 }
 
 // ============================================================
@@ -341,10 +341,10 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
     db.prepare(`
       UPDATE users SET
         last_login_ip = ?,
-        last_login_at = datetime('now'),
+        last_login_at = datetime('now', 'localtime'),
         login_count = login_count + 1,
         locale = COALESCE(?, locale),
-        updated_at = datetime('now')
+        updated_at = datetime('now', 'localtime')
       WHERE id = ?
     `).run(getClientIP(req), locale, user.id);
 
@@ -379,7 +379,7 @@ app.post("/api/auth/refresh", (req, res) => {
     const stored = db.prepare(`
       SELECT rt.*, u.name, u.email FROM refresh_tokens rt
       JOIN users u ON u.id = rt.user_id
-      WHERE rt.token = ? AND rt.expires_at > datetime('now')
+      WHERE rt.token = ? AND rt.expires_at > datetime('now', 'localtime')
     `).get(refresh_token);
 
     if (!stored) {
@@ -977,7 +977,7 @@ app.post("/api/admin/users/:id/reset-password", adminMiddleware, async (req, res
     if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
 
     const hash = await bcrypt.hash(new_password, 12);
-    db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?").run(hash, userId);
+    db.prepare("UPDATE users SET password = ?, updated_at = datetime('now', 'localtime') WHERE id = ?").run(hash, userId);
 
     // Invalidar todos los refresh tokens del usuario
     db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
@@ -1001,7 +1001,7 @@ app.post("/api/admin/users/:id/delete", adminMiddleware, (req, res) => {
     const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 0").get(userId);
     if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
 
-    db.prepare("UPDATE users SET is_deleted = 1, deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(userId);
+    db.prepare("UPDATE users SET is_deleted = 1, deleted_at = datetime('now', 'localtime'), updated_at = datetime('now', 'localtime') WHERE id = ?").run(userId);
     db.prepare("DELETE FROM refresh_tokens WHERE user_id = ?").run(userId);
 
     logActivity(null, "admin@filefoxadmins.com", "ADMIN_DELETE_USER",
@@ -1023,7 +1023,7 @@ app.post("/api/admin/users/:id/restore", adminMiddleware, (req, res) => {
     const user = db.prepare("SELECT id, email FROM users WHERE id = ? AND is_deleted = 1").get(userId);
     if (!user) return res.status(404).json({ message: "Usuario no encontrado o no eliminado." });
 
-    db.prepare("UPDATE users SET is_deleted = 0, deleted_at = NULL, updated_at = datetime('now') WHERE id = ?").run(userId);
+    db.prepare("UPDATE users SET is_deleted = 0, deleted_at = NULL, updated_at = datetime('now', 'localtime') WHERE id = ?").run(userId);
 
     logActivity(null, "admin@filefoxadmins.com", "ADMIN_RESTORE_USER",
       `Usuario restaurado: ${user.email}`, getClientIP(req));
