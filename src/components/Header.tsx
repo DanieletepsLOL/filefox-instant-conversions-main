@@ -71,17 +71,11 @@ export function Header() {
             {showMenu ? (
               <div className="absolute right-0 mt-3 w-72 min-w-[18rem] login-panel">
                 <div className="menu-options">
-                  <Link to="/dashboard" className="option-item">
-                    <span>Panel</span>
-                  </Link>
                   <Link to="/uploads" className="option-item">
-                    <span>Perfil</span>
-                  </Link>
-                  <Link to="/settings" className="option-item">
-                    <span>Configuración</span>
+                    <span>My Uploads</span>
                   </Link>
                   <button type="button" onClick={handleLogout} className="option-item download-app w-full text-left">
-                    <span>Cerrar Sesión</span>
+                    <span>Log Out</span>
                     <ArrowRight className="option-icon" />
                   </button>
                 </div>
@@ -104,3 +98,4 @@ export function Header() {
     </header>
   );
 }
+
