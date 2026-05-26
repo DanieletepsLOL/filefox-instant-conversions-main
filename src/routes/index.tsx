@@ -71,9 +71,9 @@ function Index() {
         <section id="pricing" className="container mx-auto px-4 md:px-6 py-20">
           <div className="rounded-3xl border bg-gradient-to-br from-primary to-[var(--primary-glow)] p-10 md:p-16 text-center text-primary-foreground shadow-[var(--shadow-glow)]">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight">Go unlimited with Filefox Pro</h2>
-            <p className="mt-3 opacity-90 max-w-xl mx-auto">Larger files, priority queue, and batch conversions. From $5/mo.</p>
+            <p className="mt-3 opacity-90 max-w-xl mx-auto">Larger files, priority queue, and batch conversions.</p>
             <button className="mt-7 inline-flex items-center gap-2 rounded-full bg-background text-foreground px-6 py-3 text-sm font-semibold hover:scale-105 transition-transform shadow-lg">
-              See pricing
+              No limits for now
             </button>
           </div>
         </section>

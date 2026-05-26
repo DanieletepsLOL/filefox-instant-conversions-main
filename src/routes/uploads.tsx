@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Folder, FileText, Image, Music, Video, Archive, CheckCircle2 } from "lucide-react";
+import { Folder, FileText, Image, Music, Video, Archive, CheckCircle2, Download, Clock } from "lucide-react";
 import { clearStoredUploads, getStoredUploads, removeStoredUpload, StoredUploadedFile } from "@/lib/uploads";
 
 export const Route = createFileRoute("/uploads")({
@@ -42,13 +42,28 @@ function getFileMeta(type: string) {
 
 function Uploads() {
   const [uploads, setUploads] = useState<StoredUploadedFile[]>([]);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    setUploads(
-      getStoredUploads()
-        .filter((file) => file.status === "done")
-        .sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1))
-    );
+    // Filtrar archivos expirados y actualizar cada 30s para el contador de tiempo
+    const stored = getStoredUploads()
+      .filter((file) => {
+        if (file.status !== "done") return false;
+        if (file.expiresAt && Date.now() > new Date(file.expiresAt).getTime()) return false;
+        return true;
+      })
+      .sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
+    setUploads(stored);
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+      // Limpiar expirados cada 30s
+      setUploads((prev) =>
+        prev.filter((file) => !file.expiresAt || Date.now() <= new Date(file.expiresAt).getTime())
+      );
+    }, 30_000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleClear = () => {
@@ -135,7 +150,24 @@ function Uploads() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2">
+                        {upload.downloadUrl ? (
+                          <>
+                            {upload.expiresAt && (
+                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                {Math.max(0, Math.round((new Date(upload.expiresAt).getTime() - now) / 60000))} min
+                              </span>
+                            )}
+                            <a
+                              href={upload.downloadUrl}
+                              download
+                              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-medium text-white hover:opacity-90 transition"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Descargar
+                            </a>
+                          </>
+                        ) : null}
                         <Button
                           variant="outline"
                           size="sm"

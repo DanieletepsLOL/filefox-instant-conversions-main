@@ -106,6 +106,27 @@ await fs.mkdir(PERMANENT_UPLOADS_DIR, { recursive: true }).catch((err) => {
   console.error("No se pudo crear /var/filefox/uploads:", err.message);
 });
 
+// Carpeta temporal para archivos convertidos disponibles por 1 hora
+const TEMP_FILES_DIR = path.join(os.tmpdir(), "filefox-temp");
+await fs.mkdir(TEMP_FILES_DIR, { recursive: true }).catch(() => {});
+
+// Map en memoria: fileId → { filePath, downloadFilename, expiresAt }
+const tempFiles = new Map();
+
+// Limpieza automática cada 60 segundos: borra archivos expirados
+const CLEANUP_INTERVAL = 60_000;
+const FILE_TTL = 60 * 60 * 1000; // 1 hora
+setInterval(async () => {
+  const now = Date.now();
+  for (const [fileId, meta] of tempFiles.entries()) {
+    if (now > meta.expiresAt) {
+      await fs.rm(meta.filePath, { force: true }).catch(() => {});
+      tempFiles.delete(fileId);
+      console.log(`🧹 Archivo temporal eliminado: ${fileId}`);
+    }
+  }
+}, CLEANUP_INTERVAL);
+
 await fs.mkdir(DATA_DIR, { recursive: true }).catch(() => {});
 const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
@@ -617,11 +638,26 @@ app.post("/api/conversions", upload.single("file"), async (req, res) => {
 
     logActivity(userId, userEmail, "CONVERSION", `${uploadedFile.originalname} → ${targetFormat}`, getClientIP(req));
 
+    // Guardar el archivo convertido en TEMP_FILES_DIR con un ID único para descarga por 1 hora
+    const fileId = crypto.randomUUID();
     const downloadName = `${path.parse(uploadedFile.originalname).name}.${outputExtension(targetFormat)}`;
-    console.log(`📥 Descargando: outputPath=${outputPath}, downloadName=${downloadName}`);
-    res.download(outputPath, downloadName, async () => {
-      await fs.rm(outputDir, { recursive: true, force: true });
-      await fs.rm(uploadedFile.path, { force: true });
+    const tempFilePath = path.join(TEMP_FILES_DIR, fileId);
+    await fs.copyFile(outputPath, tempFilePath);
+
+    const expiresAt = Date.now() + FILE_TTL;
+    tempFiles.set(fileId, { filePath: tempFilePath, downloadFilename: downloadName, expiresAt });
+
+    // Limpiar los directorios temporales de conversión
+    await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(uploadedFile.path, { force: true }).catch(() => {});
+
+    const downloadUrl = `/api/files/${fileId}`;
+    console.log(`📤 Archivo convertido disponible: ${downloadUrl} (expira en 1 hora)`);
+
+    res.json({
+      downloadUrl,
+      downloadFilename: downloadName,
+      expiresAt: new Date(expiresAt).toISOString(),
     });
   } catch (error) {
     await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
@@ -635,6 +671,32 @@ res.status(500).json({
   debug: error?.message
 });
   }
+});
+
+// ============================================================
+// Endpoint para descargar archivos convertidos (válidos por 1 hora)
+// ============================================================
+app.get("/api/files/:fileId", async (req, res) => {
+  const { fileId } = req.params;
+  const meta = tempFiles.get(fileId);
+
+  if (!meta) {
+    return res.status(404).json({ message: "Archivo no encontrado o ha expirado." });
+  }
+
+  if (Date.now() > meta.expiresAt) {
+    tempFiles.delete(fileId);
+    await fs.rm(meta.filePath, { force: true }).catch(() => {});
+    return res.status(410).json({ message: "El archivo ha expirado (máximo 1 hora)." });
+  }
+
+  const exists = await fs.stat(meta.filePath).then(() => true).catch(() => false);
+  if (!exists) {
+    tempFiles.delete(fileId);
+    return res.status(404).json({ message: "El archivo ya no está disponible." });
+  }
+
+  res.download(meta.filePath, meta.downloadFilename);
 });
 
 // ============================================================

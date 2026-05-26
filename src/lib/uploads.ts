@@ -5,6 +5,8 @@ export type StoredUploadedFile = {
   type: string;
   status: "ready" | "converting" | "done";
   uploadedAt: string;
+  downloadUrl?: string;
+  expiresAt?: string;
 };
 
 const STORAGE_KEY = "filefox:uploads";

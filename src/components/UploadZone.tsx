@@ -270,8 +270,14 @@ function FormatPicker({
 export function UploadZone() {
   const [files, setFiles] = useState<UploadedFile[]>(() => {
     const stored = getStoredUploads();
+    const now = Date.now();
     // Descartar archivos "converting" al recargar (perdieron el sourceFile y se quedarían colgados)
-    const valid = stored.filter((file) => file.status !== "converting");
+    // También descartar archivos "done" cuyo expiresAt ya haya pasado
+    const valid = stored.filter((file) => {
+      if (file.status === "converting") return false;
+      if (file.status === "done" && file.expiresAt && now > new Date(file.expiresAt).getTime()) return false;
+      return true;
+    });
     saveUploads(valid);
     return valid.map((file) => {
       const kind = detectFileKind(file);
@@ -376,35 +382,37 @@ export function UploadZone() {
           throw new Error(data?.message ?? "No se pudo convertir el archivo.");
         }
 
-        const blob = await response.blob();
+        const data = await response.json();
+        const downloadUrl = data.downloadUrl;
+        const downloadFilename = data.downloadFilename;
+        const expiresAt = data.expiresAt;
 
-        const disposition = response.headers.get("Content-Disposition");
-        let downloadFilename = file.name.replace(/\.[^.]+$/, "") + "." + file.targetFormat.toLowerCase();
-        if (disposition) {
-          const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-          if (match?.[1]) {
-            downloadFilename = match[1].replace(/['"]/g, "").trim();
-          }
-        }
+        // 2. DISPARAR DESCARGA AUTOMÁTICA EN EL NAVEGADOR
+        const triggerLink = document.createElement("a");
+        triggerLink.href = downloadUrl;
+        triggerLink.download = downloadFilename;
+        document.body.appendChild(triggerLink);
+        triggerLink.click();
+        document.body.removeChild(triggerLink);
 
-        const downloadUrl = URL.createObjectURL(blob);
-
-        // 2. Usamos el callback funcional de React para asegurar la mutación atómica en memoria
+        // 3. Usamos el callback funcional de React para asegurar la mutación atómica en memoria
         setFiles((prev) => {
           const updated = prev.map((item) =>
             item.id === file.id
-              ? { ...item, status: "done" as const, progress: 100, downloadUrl, downloadFilename }
+              ? { ...item, status: "done" as const, progress: 100, downloadUrl, downloadFilename, expiresAt }
               : item
         );
-          // 3. Forzamos de forma segura el guardado de los metadatos en localStorage sin corromper el estado de la RAM
+          // 4. Sincronización segura con localStorage (guardamos downloadUrl real del backend + expiresAt)
           saveUploads(
             updated.map((u) => ({
               id: u.id,
-              name: u.name,
+              name: u.downloadFilename || u.name,
               size: u.size,
               type: u.type,
               status: u.status,
               uploadedAt: u.uploadedAt,
+              downloadUrl: u.downloadUrl,
+              expiresAt: u.expiresAt,
             }))
           );
           return updated;
