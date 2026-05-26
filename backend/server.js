@@ -332,6 +332,8 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
     const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email.trim().toLowerCase());
     if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ message: "Correo o contraseña incorrectos." });
+    if (user.is_deleted)
+      return res.status(403).json({ message: "Esta cuenta ha sido eliminada." });
 
     // Detectar idioma del navegador desde el header Accept-Language
     const acceptLanguage = req.headers["accept-language"] || "";
@@ -420,8 +422,9 @@ app.post("/api/auth/logout", authMiddleware, (req, res) => {
 
 // Obtener perfil del usuario
 app.get("/api/auth/me", authMiddleware, (req, res) => {
-  const user = db.prepare("SELECT id, name, email, email_verified, total_conversions, created_at FROM users WHERE id = ?").get(req.user.id);
+  const user = db.prepare("SELECT id, name, email, email_verified, total_conversions, created_at, is_deleted FROM users WHERE id = ?").get(req.user.id);
   if (!user) return res.status(404).json({ message: "Usuario no encontrado." });
+  if (user.is_deleted) return res.status(403).json({ message: "Esta cuenta ha sido eliminada." });
   res.json({ user });
 });
 
