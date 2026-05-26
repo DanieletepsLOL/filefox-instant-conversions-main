@@ -204,9 +204,20 @@ function AdminPage() {
     } catch {}
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+    const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchUsers(searchQuery);
+  };
+
+  const fetchDeletedUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const data = await apiGet("/api/admin/users?search=&show_deleted=1");
+      setUsers(data.users || []);
+      setUsersTotal(data.total || 0);
+    } catch {} finally {
+      setUsersLoading(false);
+    }
   };
 
   const viewUser = async (user: User) => {
@@ -370,7 +381,7 @@ function AdminPage() {
           <div className="admin-section">
             <h2 className="admin-section-title">Usuarios registrados</h2>
 
-            {/* Búsqueda */}
+                        {/* Búsqueda */}
             <form onSubmit={handleSearch} className="admin-search-form">
               <input
                 type="text"
@@ -385,6 +396,13 @@ function AdminPage() {
                   Limpiar
                 </button>
               )}
+              <button
+                type="button"
+                className="admin-btn admin-btn-secondary"
+                onClick={() => fetchDeletedUsers()}
+              >
+                Ver eliminados
+              </button>
             </form>
 
             <p className="admin-total-count">{usersTotal} usuario(s) encontrado(s)</p>
@@ -423,12 +441,18 @@ function AdminPage() {
                         <td className="admin-cell-date">{fmtDate(u.last_login_at)}</td>
                         <td className="admin-cell-date">{fmtDate(u.created_at)}</td>
                         <td className="admin-cell-actions">
-                          <button className="admin-btn admin-btn-sm" onClick={() => viewUser(u)}>
+                                                    <button className="admin-btn admin-btn-sm" onClick={() => viewUser(u)}>
                             Ver
                           </button>
-                          <button className="admin-btn admin-btn-sm admin-btn-danger" onClick={() => deleteUser(u.id)}>
-                            Eliminar
-                          </button>
+                          {u.is_deleted ? (
+                            <button className="admin-btn admin-btn-sm admin-btn-warning" onClick={() => restoreUser(u.id)}>
+                              Restaurar
+                            </button>
+                          ) : (
+                            <button className="admin-btn admin-btn-sm admin-btn-danger" onClick={() => deleteUser(u.id)}>
+                              Eliminar
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -449,7 +473,7 @@ function AdminPage() {
                     <button className="admin-modal-close" onClick={() => setSelectedUser(null)}>×</button>
                   </div>
                   <div className="admin-modal-body">
-                    <div className="admin-user-detail-grid">
+                                        <div className="admin-user-detail-grid">
                       <div><strong>Email:</strong> {selectedUser.email}</div>
                       <div><strong>Proveedor:</strong> {selectedUser.auth_provider}</div>
                       <div><strong>Verificado:</strong> {selectedUser.email_verified ? "Sí" : "No"}</div>
@@ -460,7 +484,15 @@ function AdminPage() {
                       <div><strong>Última IP:</strong> {selectedUser.last_login_ip || "—"}</div>
                       <div><strong>Último login:</strong> {fmtDate(selectedUser.last_login_at)}</div>
                       <div><strong>Registrado:</strong> {fmtDate(selectedUser.created_at)}</div>
+                      <div><strong>Estado:</strong> {selectedUser.is_deleted ? <span style={{color:"var(--danger)", fontWeight:600}}>Eliminado</span> : <span style={{color:"green"}}>Activo</span>}</div>
                     </div>
+                    {selectedUser.is_deleted ? (
+                      <div style={{marginTop:"12px"}}>
+                        <button className="admin-btn admin-btn-warning" onClick={() => { restoreUser(selectedUser.id); setSelectedUser(null); }}>
+                          Restaurar este usuario
+                        </button>
+                      </div>
+                    ) : null}
 
                     <h4 className="admin-subsection-title">Restablecer contraseña</h4>
                     <div className="admin-reset-password">

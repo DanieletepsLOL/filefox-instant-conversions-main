@@ -331,6 +331,15 @@
   background: #b91c1c;
 }
 
+.admin-btn-warning {
+  background: #f59e0b;
+  color: #1e293b;
+}
+
+.admin-btn-warning:hover {
+  background: #d97706;
+}
+
 .admin-btn-logout {
   width: 100%;
   background: transparent;

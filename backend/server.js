@@ -896,12 +896,15 @@ app.get("/api/admin/users", adminMiddleware, (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
 
-    let whereClause = "WHERE u.is_deleted = 0";
+    const showDeleted = req.query.show_deleted === "1";
+    let whereClause = showDeleted ? "WHERE u.is_deleted = 1" : "WHERE u.is_deleted = 0";
     const params = [];
 
     if (search && search.trim()) {
       const s = `%${search.trim()}%`;
-      whereClause = `WHERE (u.name LIKE ? OR u.email LIKE ? OR u.last_login_ip LIKE ?) AND u.is_deleted = 0`;
+      whereClause = showDeleted
+        ? `WHERE (u.name LIKE ? OR u.email LIKE ? OR u.last_login_ip LIKE ?) AND u.is_deleted = 1`
+        : `WHERE (u.name LIKE ? OR u.email LIKE ? OR u.last_login_ip LIKE ?) AND u.is_deleted = 0`;
       params.push(s, s, s);
     }
 
