@@ -1,7 +1,7 @@
-import { Lock, EyeOff, Zap, ServerOff } from "lucide-react";
+import { Infinity, EyeOff, Zap, ServerOff } from "lucide-react";
 
 const features = [
-  { icon: Lock, title: "Secure", desc: "End-to-end encryption on every upload and conversion." },
+  { icon: Infinity, title: "Unlimited Uploads", desc: "No limits. Upload as many files as you need, whenever you need." },
   { icon: EyeOff, title: "Privacy First", desc: "Files auto-delete within 1 hour. We never look." },
   { icon: Zap, title: "Fast Conversion", desc: "Optimized engine processes files in seconds." },
   { icon: ServerOff, title: "No File Storage", desc: "Zero retention. Your files never persist on our servers." },
