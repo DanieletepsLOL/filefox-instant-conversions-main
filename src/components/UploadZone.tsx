@@ -50,10 +50,8 @@ const fileKindMeta: Record<FileKind, { label: string; icon: LucideIcon }> = {
 
 const conversionOptions: Record<FileKind, ConversionGroup[]> = {
   image: [
-    { label: "Imagen", formats: ["JPG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "HEIC", "HEIF", "ICO", "PSD", "DDS", "HDR", "TGA"] },
-    { label: "RAW", formats: ["DNG", "EXR", "PPM", "PGM", "PBM", "PNM", "PAM", "PFM", "XWD", "SUN", "RAS", "MTV", "PCD", "FTS"] },
+    { label: "Imagen", formats: ["JPG", "JPEG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "TIF", "HEIC", "HEIF", "ICO", "CUR", "PSD", "DDS", "HDR", "EXR", "TGA", "DNG", "PPM", "PGM", "PBM", "PNM", "PAM", "PFM", "XWD", "SUN", "RAS", "MTV", "PCD", "FTS", "RGBO", "IPL", "UYVY", "VIFF", "PALM", "HRZ", "XV", "JBIG", "JBG", "RGF", "SIX", "SIXEL", "SGI", "FAX", "G3", "G4", "JFI", "JIF", "JPE", "YUV", "PCT", "OTB", "VIPS", "MAP", "WBMP", "JP2", "J2K", "JPC", "PGX"] },
     { label: "Vector", formats: ["SVG", "PDF", "EPS", "PAL", "MNG", "JPS", "PICT", "PICON", "PDB"] },
-    { label: "Exótico", formats: ["RGBO", "IPL", "UYVY", "VIFF", "PALM", "HRZ", "XV", "JBIG", "JBG", "RGF", "SIX", "SIXEL", "SGI", "FAX", "G3", "G4", "JFI", "JIF", "JPE", "YUV", "PCT", "OTB", "VIPS", "MAP", "WBMP", "JP2", "J2K", "JPC", "PGX", "CUR"] },
     { label: "Documento", formats: ["PDF", "DOCX"] },
   ],
   video: [
