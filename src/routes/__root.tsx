@@ -7,6 +7,8 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { validateSession, isAuthenticated } from "@/lib/auth";
 
 import appCss from "../styles.css?url";
 
@@ -128,6 +130,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Validar sesión al cargar la app: si el token es inválido o el usuario no existe
+  // en la BD (ej: se migró la BD), se cierra sesión automáticamente
+  useEffect(() => {
+    if (isAuthenticated()) {
+      validateSession().catch(() => {
+        // Si hay un error inesperado en la validación, no hacemos nada
+        // (por ejemplo, si el servidor no responde)
+      });
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

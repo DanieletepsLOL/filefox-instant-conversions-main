@@ -182,3 +182,60 @@ export function subscribeAuthChange(listener: AuthListener) {
     authListeners.delete(listener);
   };
 }
+
+/**
+ * Verifica con el backend si la sesión actual sigue siendo válida (usuario existe en la BD,
+ * token no ha expirado, cuenta no ha sido eliminada).
+ * Si no es válida, cierra sesión automáticamente.
+ */
+export async function validateSession(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  // Admin
+  const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
+  if (adminToken) {
+    try {
+      const res = await fetch("/api/admin/conversions", {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (res.ok) return true;
+      logoutUser();
+      return false;
+    } catch {
+      return true; // error de red, asumir válido
+    }
+  }
+
+  // Usuario normal
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!accessToken) return false;
+
+  try {
+    const res = await fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.ok) return true;
+
+    // Token expirado → intentar renovar
+    const data = await res.json().catch(() => ({}));
+    if (data.code === "TOKEN_EXPIRED") {
+      const newToken = await refreshAccessToken();
+      if (!newToken) {
+        logoutUser();
+        return false;
+      }
+      const retryRes = await fetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${newToken}` },
+      });
+      if (retryRes.ok) return true;
+      logoutUser();
+      return false;
+    }
+
+    // Cualquier otro error (usuario no encontrado, eliminado, etc.)
+    logoutUser();
+    return false;
+  } catch {
+    return true; // error de red, asumir válido
+  }
+}
