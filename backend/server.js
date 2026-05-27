@@ -434,14 +434,14 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 const allowedFormats = new Set([
   "JPG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "HEIC", "ICO", "SVG", "PDF", "EPS",
   "MP4", "WEBM", "MOV", "MKV", "AVI", "M4V", "FLV",
-  "MP3", "WAV", "AAC", "FLAC", "OGG", "M4A", "OPUS",
+  "MP3", "WAV", "AAC", "FLAC", "OGG", "M4A", "OPUS", "WMA", "AIFF", "AMR", "AC3", "MP2", "GSM", "CAF", "DTS",
   "DOC", "DOCX", "ODT", "RTF", "TXT", "HTML", "MD", "EPUB", "CSV", "XLSX", "JSON", "XML", "YAML",
   "ZIP", "7Z", "TAR", "TAR.GZ", "TGZ", "GZ", "BZ2", "XZ",
 ]);
 
 const imageExts = ["jpg","jpeg","png","webp","avif","gif","bmp","tiff","heic","ico","svg","pdf","eps"];
 const videoExts = ["mp4","webm","mov","mkv","avi","m4v","flv"];
-const audioExts = ["mp3","wav","aac","flac","ogg","m4a","opus"];
+const audioExts = ["mp3","wav","aac","flac","ogg","m4a","m4r","opus","wma","aiff","aif","mid","midi","amr","mp2","ac3","gsm","caf","voc","wv","au","dts","w64","tta","8svx","ima","sph","ra","spx","cdda"];
 const docExts = ["doc","docx","odt","rtf","txt","html","md","epub","csv","xlsx","json","xml","yaml"];
 const archiveExts = ["zip","7z","rar","tar","gz","tgz","bz2","xz"];
 

@@ -61,7 +61,7 @@ const conversionOptions: Record<FileKind, ConversionGroup[]> = {
     { label: "Imagen", formats: ["PNG", "JPG"] },
   ],
   audio: [
-    { label: "Audio", formats: ["MP3", "WAV", "FLAC", "AAC", "OGG", "M4A", "OPUS"] },
+    { label: "Audio", formats: ["MP3", "WAV", "FLAC", "AAC", "OGG", "M4A", "OPUS", "WMA", "AIFF", "AMR", "AC3", "MP2", "GSM", "CAF", "DTS"] },
     { label: "Texto", formats: ["TXT", "SRT", "VTT"] },
   ],
   document: [
@@ -114,7 +114,12 @@ const imageExtensions = [
 ];
 
 const videoExtensions = ["mp4", "mov", "webm", "mkv", "avi", "m4v", "flv", "wmv", "mpeg", "mpg", "3gp"];
-const audioExtensions = ["mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "opus", "wma", "aiff", "mid", "midi"];
+const audioExtensions = [
+  "mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "m4r", "opus",
+  "wma", "aiff", "aif", "mid", "midi", "amr", "mp2", "ac3",
+  "gsm", "caf", "voc", "wv", "au", "dts", "w64", "tta",
+  "8svx", "ima", "sph", "ra", "spx", "cdda",
+];
 const documentExtensions = ["pdf", "doc", "docx", "odt", "rtf", "xls", "xlsx", "ods", "ppt", "pptx", "odp", "pages", "key"];
 const textExtensions = ["txt", "md", "markdown", "csv", "json", "xml", "yaml", "yml", "html", "htm", "css", "js", "ts", "tsx", "jsx", "log"];
 const archiveExtensions = ["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "cab", "iso"];
