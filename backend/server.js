@@ -574,6 +574,10 @@ async function convertMedia(inputPath, outputPath) {
     args.push("-codec:a", "libspeex");
   } else if (ext === "RA") {
     args.push("-codec:a", "real_144"); // RealAudio 14.4
+  } else if (ext === "DTS") {
+    args.push("-strict", "-2");      // DTS usa codec experimental 'dca'
+  } else if (ext === "AC3") {
+    args.push("-codec:a", "ac3");    // Forzar codec AC3 explícito
   }
 
   // Para 8SVX, forzamos a 8-bit mono 8000Hz
