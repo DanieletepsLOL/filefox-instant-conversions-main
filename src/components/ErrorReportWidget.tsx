@@ -23,7 +23,11 @@ const AUDIO_FORMATS = [
   "WV", "AU", "DTS", "W64", "TTA", "8SVX", "IMA", "SPH", "RA", "SPX"
 ];
 
-const IMAGE_FORMATS = ["JPG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "HEIC", "ICO", "SVG", "PDF", "EPS"];
+const IMAGE_FORMATS = ["JPG", "JPEG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "TIF", "HEIC", "HEIF", "ICO", "CUR", "SVG", "PDF", "EPS",
+  "PSD", "DDS", "HDR", "EXR", "TGA", "DNG", "PPM", "PGM", "PBM", "PNM", "PAM", "PFM", "XWD", "SUN", "RAS",
+  "MTV", "PCD", "FTS", "RGBO", "IPL", "UYVY", "VIFF", "PALM", "HRZ", "XV", "PAL", "MNG", "JPS", "PICT", "PCT",
+  "JBIG", "JBG", "RGF", "SIX", "SIXEL", "SGI", "FAX", "G3", "G4", "JFI", "JIF", "JPE", "YUV", "OTB", "VIPS", "MAP",
+  "WBMP", "JP2", "J2K", "JPC", "PGX", "PICON", "PDB"];
 const VIDEO_FORMATS = ["MP4", "WEBM", "MOV", "MKV", "AVI", "M4V", "FLV"];
 
 export function ErrorReportWidget({ isOpen, onClose, sourceFormat, targetFormat, errorMessage }: ErrorReportWidgetProps) {

@@ -446,14 +446,27 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 // Formatos permitidos
 // ============================================================
 const allowedFormats = new Set([
-  "JPG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "HEIC", "ICO", "SVG", "PDF", "EPS",
+  // Imagenes existentes + nuevos formatos
+  "JPG", "JPEG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "TIF", "HEIC", "HEIF", "ICO", "SVG", "PDF", "EPS",
+  "PSD", "DDS", "HDR", "EXR", "TGA", "DNG", "PPM", "PGM", "PBM", "PNM", "PAM", "PFM", "XWD", "SUN", "RAS",
+  "MTV", "PCD", "FTS", "RGBO", "IPL", "UYVY", "VIFF", "PALM", "HRZ", "XV", "PAL", "MNG", "JPS", "PICT",
+  "JBIG", "JBG", "RGF", "SIX", "SIXEL", "SGI", "FAX", "G3", "G4", "JFI", "YUV", "PCT", "OTB", "VIPS", "MAP",
+  "WBMP", "JP2", "J2K", "JPC", "PGX", "PICON", "PDB", "JIF", "JPE", "CUR",
+  // Video
   "MP4", "WEBM", "MOV", "MKV", "AVI", "M4V", "FLV",
+  // Audio
   "MP3", "WAV", "FLAC", "AAC", "OGG", "OGA", "M4A", "M4R", "OPUS", "WMA", "AIFF", "AIF", "AMR", "MP2", "AC3", "GSM", "CAF", "VOC", "WV", "AU", "DTS", "W64", "TTA", "8SVX", "IMA", "SPH", "RA", "SPX",
+  // Documentos
   "DOC", "DOCX", "ODT", "RTF", "TXT", "HTML", "MD", "EPUB", "CSV", "XLSX", "JSON", "XML", "YAML",
+  // Comprimidos
   "ZIP", "7Z", "TAR", "TAR.GZ", "TGZ", "GZ", "BZ2", "XZ",
 ]);
 
-const imageExts = ["jpg","jpeg","png","webp","avif","gif","bmp","tiff","heic","ico","svg","pdf","eps"];
+const imageExts = ["jpg","jpeg","png","webp","avif","gif","bmp","tiff","tif","heic","heif","ico","svg","pdf","eps",
+  "psd","dds","hdr","exr","tga","dng","ppm","pgm","pbm","pnm","pam","pfm","xwd","sun","ras",
+  "mtv","pcd","fts","rgbo","ipl","uyvy","viff","palm","hrz","xv","pal","mng","jps","pict",
+  "jbig","jbg","rgf","six","sixel","sgi","fax","g3","g4","jfi","yuv","pct","otb","vips","map",
+  "wbmp","jp2","j2k","jpc","pgx","picon","pdb","jif","jpe","cur"];
 const videoExts = ["mp4","webm","mov","mkv","avi","m4v","flv"];
 const audioExts = ["mp3","wav","aac","flac","ogg","m4a","m4r","opus","wma","aiff","aif","mid","midi","amr","mp2","ac3","gsm","caf","voc","wv","au","dts","w64","tta","8svx","ima","sph","ra","spx","cdda"];
 const docExts = ["doc","docx","odt","rtf","txt","html","md","epub","csv","xlsx","json","xml","yaml"];
