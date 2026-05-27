@@ -707,9 +707,9 @@ app.post("/api/conversions", optionalAuth, upload.single("file"), async (req, re
   try {
     // Guardar el archivo original en la carpeta permanente SOLO si el usuario está autenticado
     // Los usuarios anónimos no ocupan espacio en el servidor
+    const originalExt = path.extname(uploadedFile.originalname);
     let permanentPath = null;
     if (req.user?.id) {
-      const originalExt = path.extname(uploadedFile.originalname);
       const permanentFileName = `${Date.now()}-${crypto.randomUUID()}${originalExt}`;
       permanentPath = path.join(PERMANENT_UPLOADS_DIR, permanentFileName);
       await fs.copyFile(uploadedFile.path, permanentPath);
