@@ -103,76 +103,78 @@ export function ErrorReportWidget({ isOpen, onClose, sourceFormat, targetFormat,
               <h2>🐞 Report a Conversion Error</h2>
               <button className="error-report-close" onClick={handleClose}>×</button>
             </div>
-            <form onSubmit={handleSubmit} className="error-report-form">
-              <p className="error-report-intro">
-                Help us improve Filefox! Select which format(s) are failing and describe the issue.
-              </p>
+            <div className="error-report-scroll">
+              <form onSubmit={handleSubmit}>
+                <p className="error-report-intro">
+                  Help us improve Filefox! Select which format(s) are failing and describe the issue.
+                </p>
 
-              {sourceFormat && targetFormat && (
-                <div className="error-report-current">
-                  <strong>Current conversion:</strong> {sourceFormat} → {targetFormat}
-                  {errorMessage && (
-                    <div className="error-report-err-msg">
-                      <small>{errorMessage.slice(0, 200)}</small>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="error-report-formats">
-                <label className="error-report-label">Which format(s) failed?</label>
-                {allFormats.map(group => (
-                  <div key={group.category} className="error-report-group">
-                    <span className="error-report-group-label">{group.category}</span>
-                    <div className="error-report-format-grid">
-                      {group.formats.map(fmt => (
-                        <button
-                          key={fmt}
-                          type="button"
-                          className={`error-report-chip ${selectedFormats.includes(fmt) ? "selected" : ""}`}
-                          onClick={() => toggleFormat(fmt)}
-                        >
-                          {fmt}
-                        </button>
-                      ))}
-                    </div>
+                {sourceFormat && targetFormat && (
+                  <div className="error-report-current">
+                    <strong>Current conversion:</strong> {sourceFormat} → {targetFormat}
+                    {errorMessage && (
+                      <div className="error-report-err-msg">
+                        <small>{errorMessage.slice(0, 200)}</small>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                )}
 
-              <div className="error-report-field">
-                <label className="error-report-label">Describe the error</label>
-                <textarea
-                  className="error-report-textarea"
-                  placeholder="What happened? What file were you trying to convert? Any details help..."
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
+                <div className="error-report-formats">
+                  <label className="error-report-label">Which format(s) failed?</label>
+                  {allFormats.map(group => (
+                    <div key={group.category} className="error-report-group">
+                      <span className="error-report-group-label">{group.category}</span>
+                      <div className="error-report-format-grid">
+                        {group.formats.map(fmt => (
+                          <button
+                            key={fmt}
+                            type="button"
+                            className={`error-report-chip ${selectedFormats.includes(fmt) ? "selected" : ""}`}
+                            onClick={() => toggleFormat(fmt)}
+                          >
+                            {fmt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-              <div className="error-report-field">
-                <label className="error-report-label">Your email (optional)</label>
-                <input
-                  type="email"
-                  className="error-report-input"
-                  placeholder="email@example.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                />
-              </div>
+                <div className="error-report-field">
+                  <label className="error-report-label">Describe the error</label>
+                  <textarea
+                    className="error-report-textarea"
+                    placeholder="What happened? What file were you trying to convert? Any details help..."
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    rows={3}
+                  />
+                </div>
 
-              {formError && <p className="error-report-error">{formError}</p>}
+                <div className="error-report-field">
+                  <label className="error-report-label">Your email (optional)</label>
+                  <input
+                    type="email"
+                    className="error-report-input"
+                    placeholder="email@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </div>
 
-              <div className="error-report-actions">
-                <button type="button" className="error-report-btn error-report-btn-cancel" onClick={handleClose}>
-                  Cancel
-                </button>
-                <button type="submit" className="error-report-btn error-report-btn-submit" disabled={sending}>
-                  {sending ? "Sending..." : "Send Report"}
-                </button>
-              </div>
-            </form>
+                {formError && <p className="error-report-error">{formError}</p>}
+
+                <div className="error-report-actions">
+                  <button type="button" className="error-report-btn error-report-btn-cancel" onClick={handleClose}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="error-report-btn error-report-btn-submit" disabled={sending}>
+                    {sending ? "Sending..." : "Send Report"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </>
         ) : (
           <div className="error-report-success">

@@ -1,15 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight, UserCircle2, Bug } from "lucide-react";
-// removed unused Shield import
+import { ArrowRight, UserCircle2 } from "lucide-react";
 import { FoxLogo } from "./FoxLogo";
 import { isAuthenticated, logoutUser, subscribeAuthChange } from "@/lib/auth";
-import { ErrorReportWidget } from "./ErrorReportWidget";
 
 export function Header() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     const authenticated = isAuthenticated();
@@ -60,17 +57,6 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          {/* Botón de reporte de errores - siempre visible */}
-          <button
-            type="button"
-            onClick={() => setReportOpen(true)}
-            className="text-sm font-medium text-red-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
-            title="Report a conversion error"
-          >
-            <Bug className="h-4 w-4" />
-            <span className="hidden sm:inline">Is the converter giving an error? Report it here.</span>
-          </button>
-
           {loggedIn ? (
             <div className="relative" data-user-menu>
               <button
@@ -109,11 +95,6 @@ export function Header() {
             </Link>
         )}
         </div>
-
-        <ErrorReportWidget
-          isOpen={reportOpen}
-          onClose={() => setReportOpen(false)}
-        />
       </div>
     </header>
   );

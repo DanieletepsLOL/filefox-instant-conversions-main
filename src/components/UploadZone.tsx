@@ -495,6 +495,20 @@ export function UploadZone() {
             </p>
           </div>
 
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Archivos subidos:</p>
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="text-sm font-medium text-red-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
+              title="Report a conversion error"
+            >
+              <span className="inline-flex items-center gap-1 text-red-500 hover:text-red-400 transition-colors">
+                🐞 Is the converter giving an error? Report it here.
+              </span>
+            </button>
+          </div>
+
           <div className="mt-4 space-y-3">
             {files.map((file) => {
               const meta = fileKindMeta[file.kind];
