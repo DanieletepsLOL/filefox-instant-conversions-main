@@ -434,7 +434,7 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 const allowedFormats = new Set([
   "JPG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "HEIC", "ICO", "SVG", "PDF", "EPS",
   "MP4", "WEBM", "MOV", "MKV", "AVI", "M4V", "FLV",
-  "MP3", "WAV", "AAC", "FLAC", "OGG", "M4A", "OPUS", "WMA", "AIFF", "AMR", "AC3", "MP2", "GSM", "CAF", "DTS",
+  "MP3", "WAV", "FLAC", "AAC", "OGG", "OGA", "M4A", "M4R", "OPUS", "WMA", "AIFF", "AIF", "MID", "MIDI", "AMR", "MP2", "AC3", "GSM", "CAF", "VOC", "WV", "AU", "DTS", "W64", "TTA", "8SVX", "IMA", "SPH", "RA", "SPX", "CDDA",
   "DOC", "DOCX", "ODT", "RTF", "TXT", "HTML", "MD", "EPUB", "CSV", "XLSX", "JSON", "XML", "YAML",
   "ZIP", "7Z", "TAR", "TAR.GZ", "TGZ", "GZ", "BZ2", "XZ",
 ]);

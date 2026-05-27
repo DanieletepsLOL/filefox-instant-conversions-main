@@ -61,7 +61,7 @@ const conversionOptions: Record<FileKind, ConversionGroup[]> = {
     { label: "Imagen", formats: ["PNG", "JPG"] },
   ],
   audio: [
-    { label: "Audio", formats: ["MP3", "WAV", "FLAC", "AAC", "OGG", "M4A", "OPUS", "WMA", "AIFF", "AMR", "AC3", "MP2", "GSM", "CAF", "DTS"] },
+    { label: "Audio", formats: ["MP3", "WAV", "FLAC", "AAC", "OGG", "OGA", "M4A", "M4R", "OPUS", "WMA", "AIFF", "AIF", "MID", "MIDI", "AMR", "MP2", "AC3", "GSM", "CAF", "VOC", "WV", "AU", "DTS", "W64", "TTA", "8SVX", "IMA", "SPH", "RA", "SPX", "CDDA"] },
     { label: "Texto", formats: ["TXT", "SRT", "VTT"] },
   ],
   document: [
