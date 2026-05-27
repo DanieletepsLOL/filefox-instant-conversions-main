@@ -1,13 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight, UserCircle2 } from "lucide-react";
+import { ArrowRight, UserCircle2, Bug } from "lucide-react";
 // removed unused Shield import
 import { FoxLogo } from "./FoxLogo";
 import { isAuthenticated, logoutUser, subscribeAuthChange } from "@/lib/auth";
+import { ErrorReportWidget } from "./ErrorReportWidget";
 
 export function Header() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     const authenticated = isAuthenticated();
@@ -57,45 +59,62 @@ export function Header() {
           <Link to="/uploads" className="text-muted-foreground hover:text-foreground transition-colors">Files</Link>
         </nav>
 
-        {loggedIn ? (
-          <div className="relative" data-user-menu>
-            <button
-              type="button"
-              data-user-button
-              onClick={() => setShowMenu((value) => !value)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white shadow-sm transition hover:shadow-md"
-            >
-              <UserCircle2 className="h-6 w-6" />
-            </button>
-
-            {showMenu ? (
-              <div className="absolute right-0 mt-3 w-72 min-w-[18rem] login-panel">
-                <div className="menu-options">
-                  <Link to="/uploads" className="option-item">
-                    <span>My Uploads</span>
-                  </Link>
-                  <button type="button" onClick={handleLogout} className="option-item download-app w-full text-left">
-                    <span>Log Out</span>
-                    <ArrowRight className="option-icon" />
-                  </button>
-                </div>
-                <div className="login-footer">
-                  <button type="button" className="footer-link">Política de Privacidad</button>
-                  <button type="button" className="footer-link">Términos</button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <Link
-            to="/login"
-            className="flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+        <div className="flex items-center gap-3">
+          {/* Botón de reporte de errores - siempre visible */}
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="text-sm font-medium text-red-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
+            title="Report a conversion error"
           >
-            <span>Iniciar sesión</span>
-          </Link>
+            <Bug className="h-4 w-4" />
+            <span className="hidden sm:inline">Is the converter giving an error? Report it here.</span>
+          </button>
+
+          {loggedIn ? (
+            <div className="relative" data-user-menu>
+              <button
+                type="button"
+                data-user-button
+                onClick={() => setShowMenu((value) => !value)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white shadow-sm transition hover:shadow-md"
+              >
+                <UserCircle2 className="h-6 w-6" />
+              </button>
+
+              {showMenu ? (
+                <div className="absolute right-0 mt-3 w-72 min-w-[18rem] login-panel">
+                  <div className="menu-options">
+                    <Link to="/uploads" className="option-item">
+                      <span>My Uploads</span>
+                    </Link>
+                    <button type="button" onClick={handleLogout} className="option-item download-app w-full text-left">
+                      <span>Log Out</span>
+                      <ArrowRight className="option-icon" />
+                    </button>
+                  </div>
+                  <div className="login-footer">
+                    <button type="button" className="footer-link">Política de Privacidad</button>
+                    <button type="button" className="footer-link">Términos</button>
+                  </div>
+                </div>
+            ) : null}
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              className="flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+            >
+              <span>Iniciar sesión</span>
+            </Link>
         )}
+        </div>
+
+        <ErrorReportWidget
+          isOpen={reportOpen}
+          onClose={() => setReportOpen(false)}
+        />
       </div>
     </header>
   );
 }
-

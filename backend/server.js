@@ -220,6 +220,20 @@ db.exec(`
   )
 `);
 
+// ✅ Tabla de reportes de errores de conversión
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversion_errors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_format TEXT NOT NULL DEFAULT 'unknown',
+    target_formats TEXT NOT NULL,
+    error_message TEXT,
+    description TEXT NOT NULL,
+    email TEXT,
+    ip TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+  )
+`);
+
 // ============================================================
 // 5. FUNCIONES DE AYUDA
 // ============================================================
@@ -764,6 +778,60 @@ res.status(500).json({
 });
 
 // ============================================================
+// Endpoint para reportar errores de conversión
+// ============================================================
+app.post("/api/conversions/errors", (req, res) => {
+  try {
+    const { sourceFormat, targetFormats, errorMessage, description, email } = req.body;
+
+    if (!description || !description.trim()) {
+      return res.status(400).json({ message: "Description is required." });
+    }
+    if (!targetFormats || !Array.isArray(targetFormats) || targetFormats.length === 0) {
+      return res.status(400).json({ message: "At least one target format is required." });
+    }
+
+    db.prepare(`
+      INSERT INTO conversion_errors (source_format, target_formats, error_message, description, email, ip)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      sourceFormat || "unknown",
+      targetFormats.join(", "),
+      (errorMessage || "").slice(0, 500),
+      description.trim(),
+      (email || "").trim() || null,
+      getClientIP(req)
+    );
+
+    logActivity(null, email || null, "CONVERSION_ERROR_REPORT",
+      `Error report: ${sourceFormat} → ${targetFormats.join(", ")}`, getClientIP(req));
+
+    res.json({ message: "Report received. Thank you!" });
+  } catch (error) {
+    console.error("Error report error:", error);
+    res.status(500).json({ message: "Error saving report." });
+  }
+});
+
+// ============================================================
+// ADMIN - Ver reportes de errores
+// ============================================================
+app.get("/api/admin/errors", adminMiddleware, (req, res) => {
+  try {
+    const errors = db.prepare(`
+      SELECT id, source_format, target_formats, error_message, description, email, ip, created_at
+      FROM conversion_errors
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all();
+    res.json({ errors });
+  } catch (error) {
+    console.error("Error fetching reports:", error);
+    res.status(500).json({ message: "Error al obtener reportes." });
+  }
+});
+
+// ============================================================
 // Endpoint para descargar archivos convertidos (válidos por 1 hora)
 // ============================================================
 app.get("/api/files/:fileId", async (req, res) => {
@@ -926,22 +994,17 @@ app.get("/api/admin/stats", adminMiddleware, async (req, res) => {
     const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get();
     const totalConversions = db.prepare("SELECT COUNT(*) as count FROM conversions").get();
     const conversionsToday = db.prepare("SELECT COUNT(*) as count FROM conversions WHERE date(created_at) = date('now')").get();
+    const errorCount = db.prepare("SELECT COUNT(*) as count FROM conversion_errors").get();
 
     const files = await fs.readdir(PERMANENT_UPLOADS_DIR);
     const fileCount = files.length;
-
-
-
-
-
-
-
 
     res.json({
       total_users: totalUsers.count,
       total_conversions: totalConversions.count,
       conversions_today: conversionsToday.count,
-      total_files: fileCount
+      total_files: fileCount,
+      error_reports: errorCount.count
     });
   } catch (error) {
     console.error("Error fetching stats:", error);

@@ -7,7 +7,7 @@ import "./admin.css";
 // Diseño vertical, clásico, con pestañas laterales
 // ============================================================
 
-type TabId = "dashboard" | "users" | "activity" | "uploads" | "conversions";
+type TabId = "dashboard" | "users" | "activity" | "uploads" | "conversions" | "errors";
 
 interface User {
   id: number;
@@ -70,8 +70,9 @@ function AdminPage() {
   const [usersTotal, setUsersTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [conversions, setConversions] = useState<Conversion[]>([]);
-  const [activity, setActivity] = useState<ActivityLog[]>([]);
+    const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [uploads, setUploads] = useState<any[]>([]);
+  const [errors, setErrors] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userConversions, setUserConversions] = useState<Conversion[]>([]);
   const [userActivity, setUserActivity] = useState<ActivityLog[]>([]);
@@ -91,12 +92,13 @@ function AdminPage() {
 
   // Verificar si ya hay token al cargar
   useEffect(() => {
-    if (token) {
+        if (token) {
       fetchStats();
       fetchConversions();
       fetchActivity();
       fetchUploads();
       fetchUsers();
+      fetchErrors();
     }
   }, [token]);
 
@@ -120,6 +122,7 @@ function AdminPage() {
       fetchActivity();
       fetchUploads();
       fetchUsers();
+      fetchErrors();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -197,10 +200,17 @@ function AdminPage() {
     } catch {}
   };
 
-  const fetchUploads = async () => {
+    const fetchUploads = async () => {
     try {
       const data = await apiGet("/api/admin/uploads");
       setUploads(data.files || []);
+    } catch {}
+  };
+
+  const fetchErrors = async () => {
+    try {
+      const data = await apiGet("/api/admin/errors");
+      setErrors(data.errors || []);
     } catch {}
   };
 
@@ -284,11 +294,12 @@ function AdminPage() {
   }, []);
 
 // Panel principal con sidebar vertical
-  const tabs: { id: TabId; label: string; icon: string }[] = [
+    const tabs: { id: TabId; label: string; icon: string }[] = [
     { id: "dashboard", label: "Panel", icon: "📊" },
     { id: "users", label: "Usuarios", icon: "👥" },
     { id: "activity", label: "Actividad", icon: "📋" },
     { id: "conversions", label: "Conversiones", icon: "🔄" },
+    { id: "errors", label: "Errores", icon: "🐞" },
     { id: "uploads", label: "Archivos", icon: "📁" },
   ];
 
@@ -338,9 +349,15 @@ function AdminPage() {
                 <div className="admin-stat-number">{stats?.conversions_today ?? "—"}</div>
                 <div className="admin-stat-label">Conversiones hoy</div>
               </div>
-              <div className="admin-stat-card">
+                            <div className="admin-stat-card">
                 <div className="admin-stat-number">{stats?.total_files ?? "—"}</div>
                 <div className="admin-stat-label">Archivos en servidor</div>
+              </div>
+              <div className="admin-stat-card" style={{ borderColor: (stats?.error_reports ?? 0) > 0 ? "#ef4444" : undefined }}>
+                <div className="admin-stat-number" style={{ color: (stats?.error_reports ?? 0) > 0 ? "#ef4444" : undefined }}>
+                  {stats?.error_reports ?? "—"}
+                </div>
+                <div className="admin-stat-label">Reportes de error</div>
               </div>
             </div>
 
@@ -637,6 +654,47 @@ function AdminPage() {
                   ))}
                   {conversions.length === 0 && (
                     <tr><td colSpan={8} className="admin-empty">No hay conversiones</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ===== ERRORES REPORTADOS ===== */}
+        {activeTab === "errors" && (
+          <div className="admin-section">
+            <h2 className="admin-section-title">Reportes de errores 🐞</h2>
+            <p className="admin-total-count">{errors.length} reporte(s) de error</p>
+            <div className="admin-table-wrapper">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>De → A</th>
+                    <th>Descripción</th>
+                    <th>Email</th>
+                    <th>IP</th>
+                    <th>Error</th>
+                    <th>Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {errors.map((e: any) => (
+                    <tr key={e.id}>
+                      <td className="admin-cell-id">{e.id}</td>
+                      <td>{e.source_format} → {e.target_formats}</td>
+                      <td className="admin-cell-detail" style={{ maxWidth: 250 }}>{e.description}</td>
+                      <td>{e.email || "—"}</td>
+                      <td className="admin-cell-ip">{e.ip || "—"}</td>
+                      <td className="admin-cell-detail" style={{ maxWidth: 200, fontSize: "0.75rem", fontFamily: "monospace" }}>
+                        {e.error_message ? e.error_message.slice(0, 80) + (e.error_message.length > 80 ? "..." : "") : "—"}
+                      </td>
+                      <td className="admin-cell-date">{fmtDate(e.created_at)}</td>
+                    </tr>
+                  ))}
+                  {errors.length === 0 && (
+                    <tr><td colSpan={7} className="admin-empty">No hay reportes de errores</td></tr>
                   )}
                 </tbody>
               </table>

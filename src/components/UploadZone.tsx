@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { addStoredUploads, getStoredUploads, saveUploads, StoredUploadedFile } from "@/lib/uploads";
 import { getAccessToken } from "@/lib/auth";
+import { ErrorReportWidget } from "./ErrorReportWidget";
 
 type FileKind = "image" | "video" | "audio" | "document" | "text" | "archive" | "unknown";
 
@@ -299,6 +300,8 @@ export function UploadZone() {
   const [dragging, setDragging] = useState(false);
   const [converting, setConverting] = useState(false);
   const [error, setError] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportError, setReportError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const readyFiles = useMemo(() => files.filter((file) => file.status !== "done"), [files]);
@@ -541,12 +544,27 @@ export function UploadZone() {
                       </button>
                     )}
                   </div>
+
                 </div>
               );
             })}
           </div>
 
-          {error && <p className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
+          {error && (
+            <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {error}
+              <button
+                type="button"
+                onClick={() => {
+                  setReportError(error);
+                  setReportOpen(true);
+                }}
+                className="ml-2 underline hover:no-underline"
+              >
+                Report this error
+              </button>
+            </div>
+          )}
 
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
@@ -563,6 +581,17 @@ export function UploadZone() {
           </div>
         </div>
       )}
+
+      <ErrorReportWidget
+        isOpen={reportOpen}
+        onClose={() => {
+          setReportOpen(false);
+          setReportError("");
+        }}
+        sourceFormat={files.find(f => f.status === "ready")?.sourceFormat}
+        targetFormat={files.find(f => f.status === "ready")?.targetFormat}
+        errorMessage={reportError}
+      />
     </div>
   );
 }
