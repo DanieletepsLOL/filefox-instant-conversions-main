@@ -119,7 +119,7 @@ try {
 const TEMP_FILES_DIR = path.join(os.tmpdir(), "filefox-temp");
 await fs.mkdir(TEMP_FILES_DIR, { recursive: true }).catch(() => {});
 
-// Map en memoria: fileId → { filePath, downloadFilename, expiresAt }
+// Map en memoria: fileId → { filePath, downloadFilename, expiresAt, userId, originalName, size, sourceFormat, targetFormat }
 const tempFiles = new Map();
 
 // Limpieza automática cada 60 segundos: borra archivos expirados
@@ -762,7 +762,16 @@ app.post("/api/conversions", optionalAuth, upload.single("file"), async (req, re
     await fs.copyFile(outputPath, tempFilePath);
 
     const expiresAt = Date.now() + FILE_TTL;
-    tempFiles.set(fileId, { filePath: tempFilePath, downloadFilename: downloadName, expiresAt });
+    tempFiles.set(fileId, {
+      filePath: tempFilePath,
+      downloadFilename: downloadName,
+      expiresAt,
+      userId: req.user?.id || null,
+      originalName: uploadedFile.originalname,
+      size: uploadedFile.size,
+      sourceFormat: originalExt.replace(".", ""),
+      targetFormat,
+    });
 
     // Limpiar los directorios temporales de conversión
     await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
@@ -842,6 +851,65 @@ app.get("/api/admin/errors", adminMiddleware, (req, res) => {
     console.error("Error fetching reports:", error);
     res.status(500).json({ message: "Error al obtener reportes." });
   }
+});
+
+// ============================================================
+// Endpoint para listar archivos convertidos del usuario autenticado
+// Solo devuelve archivos que aún no hayan expirado
+// ============================================================
+app.get("/api/files", authMiddleware, (req, res) => {
+  try {
+    const now = Date.now();
+    const userFiles = [];
+
+    for (const [fileId, meta] of tempFiles.entries()) {
+      // Solo archivos del usuario autenticado que no hayan expirado
+      if (meta.userId === req.user.id && now < meta.expiresAt) {
+        userFiles.push({
+          id: fileId,
+          name: meta.downloadFilename,
+          originalName: meta.originalName,
+          size: meta.size,
+          sourceFormat: meta.sourceFormat,
+          targetFormat: meta.targetFormat,
+          downloadUrl: `/api/files/${fileId}`,
+          expiresAt: new Date(meta.expiresAt).toISOString(),
+          uploadedAt: new Date(meta.expiresAt - 60 * 60 * 1000).toISOString(), // estimado: 1 hora antes
+        });
+      }
+    }
+
+    // Ordenar por fecha de subida (más reciente primero)
+    userFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+
+    res.json({ files: userFiles });
+  } catch (error) {
+    console.error("Error listing user files:", error);
+    res.status(500).json({ message: "Error al listar archivos." });
+  }
+});
+
+// ============================================================
+// Endpoint para eliminar un archivo temporal del usuario
+// ============================================================
+app.delete("/api/files/:fileId", authMiddleware, async (req, res) => {
+  const { fileId } = req.params;
+  const meta = tempFiles.get(fileId);
+
+  if (!meta) {
+    return res.status(404).json({ message: "Archivo no encontrado o ya expiró." });
+  }
+
+  // Solo el dueño puede eliminar
+  if (meta.userId !== req.user.id) {
+    return res.status(403).json({ message: "No tienes permiso para eliminar este archivo." });
+  }
+
+  // Eliminar archivo físico y del map
+  await fs.rm(meta.filePath, { force: true }).catch(() => {});
+  tempFiles.delete(fileId);
+
+  res.json({ message: "Archivo eliminado." });
 });
 
 // ============================================================
