@@ -16,8 +16,9 @@
   border-radius: 16px;
   width: 90%;
   max-width: 600px;
-  max-height: 85vh;
-  overflow-y: auto;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   animation: slideUp 0.3s ease-out;
 }
@@ -27,6 +28,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px 0;
+  flex-shrink: 0;
 }
 
 .error-report-header h2 {
@@ -52,8 +54,15 @@
   color: #fff;
 }
 
-.error-report-form {
+.error-report-scroll {
+  overflow-y: auto;
   padding: 16px 24px 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.error-report-form {
+  /* padding is now on .error-report-scroll */
 }
 
 .error-report-intro {
@@ -150,6 +159,7 @@
   font-family: inherit;
   outline: none;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
 
 .error-report-textarea:focus {
@@ -166,6 +176,7 @@
   font-size: 0.85rem;
   outline: none;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
 
 .error-report-input:focus {
@@ -183,6 +194,8 @@
   gap: 10px;
   justify-content: flex-end;
   margin-top: 8px;
+  flex-shrink: 0;
+  padding-bottom: 4px;
 }
 
 .error-report-btn {
