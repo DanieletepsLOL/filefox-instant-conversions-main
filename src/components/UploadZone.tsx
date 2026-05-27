@@ -500,12 +500,10 @@ export function UploadZone() {
             <button
               type="button"
               onClick={() => setReportOpen(true)}
-              className="text-sm font-medium text-red-500 hover:text-red-400 transition-colors inline-flex items-center gap-1"
+              className="text-xs text-red-500/70 hover:text-red-400 transition-colors"
               title="Report a conversion error"
             >
-              <span className="inline-flex items-center gap-1 text-red-500 hover:text-red-400 transition-colors">
-                🐞 Is the converter giving an error? Report it here.
-              </span>
+              Is the converter giving an error? Report it here.
             </button>
           </div>
 
