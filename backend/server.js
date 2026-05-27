@@ -528,13 +528,41 @@ async function convertImage(inputPath, outputPath, targetFormat, fileSize, origi
   await run(findCommand("convert"), args, {}, timeout);
 }
 
+// Formatos que requieren 8000 Hz forzosamente
+const FORMATS_REQUIRE_8KHZ = new Set(["GSM"]);
+
+// Formato que requieren 16000 Hz
+const FORMATS_REQUIRE_16KHZ = new Set(["SPX"]);
+
 // Añade un timeout explícito para que FFmpeg no deje colgado el servidor
 async function convertMedia(inputPath, outputPath) {
-  await run("ffmpeg", [
+  const ext = path.extname(outputPath).toLowerCase().replace(".", "").toUpperCase();
+
+  // Construir args con re-muestreo automático si es necesario
+  const args = [
     "-y",
     "-i", inputPath,
-    outputPath
-  ], {}, 120000); // Límite de 2 minutos para procesamiento multimedia
+  ];
+
+  if (FORMATS_REQUIRE_8KHZ.has(ext)) {
+    args.push("-ar", "8000");        // GSM requiere 8000 Hz
+  } else if (FORMATS_REQUIRE_16KHZ.has(ext)) {
+    args.push("-ar", "16000");       // Speex requiere 16000 Hz
+  }
+
+  // Forzar codec de audio explícito para formatos problemáticos
+  if (ext === "GSM") {
+    args.push("-ac", "1");           // GSM es mono
+    args.push("-codec:a", "libgsm");
+  } else if (ext === "SPX") {
+    args.push("-codec:a", "libspeex");
+  } else if (ext === "RA") {
+    args.push("-codec:a", "real_144"); // RealAudio 14.4
+  }
+
+  args.push(outputPath);
+
+  await run("ffmpeg", args, {}, 120000); // Límite de 2 minutos
 }
 async function convertDocument(inputPath, outputDir, targetFormat) {
   await run("libreoffice", ["--headless", "--convert-to", targetFormat.toLowerCase(), "--outdir", outputDir, inputPath]);
