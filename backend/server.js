@@ -705,11 +705,15 @@ app.post("/api/conversions", optionalAuth, upload.single("file"), async (req, re
   }
 
   try {
-    // Guardar el archivo original en la carpeta permanente
-    const originalExt = path.extname(uploadedFile.originalname);
-    const permanentFileName = `${Date.now()}-${crypto.randomUUID()}${originalExt}`;
-    const permanentPath = path.join(PERMANENT_UPLOADS_DIR, permanentFileName);
-    await fs.copyFile(uploadedFile.path, permanentPath);
+    // Guardar el archivo original en la carpeta permanente SOLO si el usuario está autenticado
+    // Los usuarios anónimos no ocupan espacio en el servidor
+    let permanentPath = null;
+    if (req.user?.id) {
+      const originalExt = path.extname(uploadedFile.originalname);
+      const permanentFileName = `${Date.now()}-${crypto.randomUUID()}${originalExt}`;
+      permanentPath = path.join(PERMANENT_UPLOADS_DIR, permanentFileName);
+      await fs.copyFile(uploadedFile.path, permanentPath);
+    }
 
     await fs.mkdir(outputDir, { recursive: true });
     const kind = sourceKind || detectSourceKind(uploadedFile.originalname);
@@ -779,11 +783,12 @@ app.post("/api/conversions", optionalAuth, upload.single("file"), async (req, re
         targetFormat,
       });
     } else {
-      // Usuario anónimo: el archivo se borra del disco en 1 minuto (tiempo suficiente para descargar)
+      // Usuario anónimo: el archivo se borra del disco en 30 segundos (suficiente para que se descargue)
+      // NO ocupa espacio permanente ni aparece en /api/files
       setTimeout(async () => {
         await fs.rm(tempFilePath, { force: true }).catch(() => {});
         console.log(`🧹 Archivo anónimo eliminado del disco: ${fileId}`);
-      }, 60_000);
+      }, 30_000);
     }
 
     // Limpiar los directorios temporales de conversión
