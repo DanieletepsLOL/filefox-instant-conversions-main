@@ -280,8 +280,10 @@ export function UploadZone() {
     const now = Date.now();
     // Descartar archivos "converting" al recargar (perdieron el sourceFile y se quedarían colgados)
     // También descartar archivos "done" cuyo expiresAt ya haya pasado
+    // Solo conservar archivos que ya se convirtieron (done) y no han expirado.
+    // Los "ready" se descartan porque al recargar la página se pierde el sourceFile.
     const valid = stored.filter((file) => {
-      if (file.status === "converting") return false;
+      if (file.status === "ready" || file.status === "converting") return false;
       if (file.status === "done" && file.expiresAt && now > new Date(file.expiresAt).getTime()) return false;
       return true;
     });
@@ -339,7 +341,22 @@ export function UploadZone() {
   }, []);
 
   const remove = (id: string) => {
-    setFiles((prev) => prev.filter((file) => file.id !== id));
+    setFiles((prev) => {
+      const updated = prev.filter((file) => file.id !== id);
+      saveUploads(
+        updated.map((u) => ({
+          id: u.id,
+          name: u.downloadFilename || u.name,
+          size: u.size,
+          type: u.type,
+          status: u.status,
+          uploadedAt: u.uploadedAt,
+          downloadUrl: u.downloadUrl,
+          expiresAt: u.expiresAt,
+        }))
+      );
+      return updated;
+    });
   };
 
   const updateTarget = (id: string, targetFormat: string) => {
