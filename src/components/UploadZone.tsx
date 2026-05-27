@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { addStoredUploads, getStoredUploads, saveUploads, StoredUploadedFile } from "@/lib/uploads";
+import { StoredUploadedFile } from "@/lib/uploads";
 import { getAccessToken } from "@/lib/auth";
 import { ErrorReportWidget } from "./ErrorReportWidget";
 
@@ -325,30 +325,7 @@ function FormatPicker({
 }
 
 export function UploadZone() {
-  const [files, setFiles] = useState<UploadedFile[]>(() => {
-    const stored = getStoredUploads();
-    const now = Date.now();
-    // Descartar archivos "converting" al recargar (perdieron el sourceFile y se quedarían colgados)
-    // También descartar archivos "done" cuyo expiresAt ya haya pasado
-    // Solo conservar archivos que ya se convirtieron (done) y no han expirado.
-    // Los "ready" se descartan porque al recargar la página se pierde el sourceFile.
-    const valid = stored.filter((file) => {
-      if (file.status === "ready" || file.status === "converting") return false;
-      if (file.status === "done" && file.expiresAt && now > new Date(file.expiresAt).getTime()) return false;
-      return true;
-    });
-    saveUploads(valid);
-    return valid.map((file) => {
-      const kind = detectFileKind(file);
-      return {
-        ...file,
-        kind,
-        sourceFormat: labelSourceFormat(file),
-        targetFormat: defaultTarget(kind),
-        progress: 100,
-      };
-    });
-  });
+  const [files, setFiles] = useState<UploadedFile[]>([]);  // Ya no se persiste en localStorage - los archivos son efímeros
   const [dragging, setDragging] = useState(false);
   const [converting, setConverting] = useState(false);
   const [error, setError] = useState("");
@@ -383,30 +360,11 @@ export function UploadZone() {
     });
 
     setError("");
-    setFiles((prev) => {
-      const merged = [...prev, ...next];
-      addStoredUploads(next);
-      return merged;
-    });
+    setFiles((prev) => [...prev, ...next]);
   }, []);
 
   const remove = (id: string) => {
-    setFiles((prev) => {
-      const updated = prev.filter((file) => file.id !== id);
-      saveUploads(
-        updated.map((u) => ({
-          id: u.id,
-          name: u.downloadFilename || u.name,
-          size: u.size,
-          type: u.type,
-          status: u.status,
-          uploadedAt: u.uploadedAt,
-          downloadUrl: u.downloadUrl,
-          expiresAt: u.expiresAt,
-        }))
-      );
-      return updated;
-    });
+    setFiles((prev) => prev.filter((file) => file.id !== id));
   };
 
   const updateTarget = (id: string, targetFormat: string) => {
@@ -479,28 +437,14 @@ export function UploadZone() {
         triggerLink.click();
         document.body.removeChild(triggerLink);
 
-        // 3. Usamos el callback funcional de React para asegurar la mutación atómica en memoria
-        setFiles((prev) => {
-          const updated = prev.map((item) =>
+        // 3. Marcamos el archivo como convertido (solo en memoria, no se persiste)
+        setFiles((prev) =>
+          prev.map((item) =>
             item.id === file.id
               ? { ...item, status: "done" as const, progress: 100, downloadUrl, downloadFilename, expiresAt }
               : item
+          )
         );
-          // 4. Sincronización segura con localStorage (guardamos downloadUrl real del backend + expiresAt)
-          saveUploads(
-            updated.map((u) => ({
-              id: u.id,
-              name: u.downloadFilename || u.name,
-              size: u.size,
-              type: u.type,
-              status: u.status,
-              uploadedAt: u.uploadedAt,
-              downloadUrl: u.downloadUrl,
-              expiresAt: u.expiresAt,
-            }))
-          );
-          return updated;
-        });
       }
     } catch (conversionError) {
       setFiles((prev) =>

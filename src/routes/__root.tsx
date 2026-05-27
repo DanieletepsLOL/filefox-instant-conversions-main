@@ -10,6 +10,13 @@ import {
 
 import appCss from "../styles.css?url";
 
+// Limpiar localStorage antiguo de uploads (ya no se usa)
+if (typeof window !== "undefined") {
+  try {
+    localStorage.removeItem("filefox:uploads");
+  } catch {}
+}
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -128,3 +135,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+

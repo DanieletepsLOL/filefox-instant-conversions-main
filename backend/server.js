@@ -762,16 +762,29 @@ app.post("/api/conversions", optionalAuth, upload.single("file"), async (req, re
     await fs.copyFile(outputPath, tempFilePath);
 
     const expiresAt = Date.now() + FILE_TTL;
-    tempFiles.set(fileId, {
-      filePath: tempFilePath,
-      downloadFilename: downloadName,
-      expiresAt,
-      userId: req.user?.id || null,
-      originalName: uploadedFile.originalname,
-      size: uploadedFile.size,
-      sourceFormat: originalExt.replace(".", ""),
-      targetFormat,
-    });
+
+    // Solo si el usuario está autenticado: registrar en tempFiles para que aparezca en /api/files (pestaña Files)
+    // Usuarios anónimos: el archivo se guarda solo para la descarga directa inmediata,
+    // NO se registra en tempFiles, por lo que NO aparece en /api/files.
+    // Además, se programa su eliminación rápida (1 minuto) para no ocupar espacio.
+    if (req.user?.id) {
+      tempFiles.set(fileId, {
+        filePath: tempFilePath,
+        downloadFilename: downloadName,
+        expiresAt,
+        userId: req.user.id,
+        originalName: uploadedFile.originalname,
+        size: uploadedFile.size,
+        sourceFormat: originalExt.replace(".", ""),
+        targetFormat,
+      });
+    } else {
+      // Usuario anónimo: el archivo se borra del disco en 1 minuto (tiempo suficiente para descargar)
+      setTimeout(async () => {
+        await fs.rm(tempFilePath, { force: true }).catch(() => {});
+        console.log(`🧹 Archivo anónimo eliminado del disco: ${fileId}`);
+      }, 60_000);
+    }
 
     // Limpiar los directorios temporales de conversión
     await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
