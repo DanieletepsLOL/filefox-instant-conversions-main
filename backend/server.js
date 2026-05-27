@@ -434,7 +434,7 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
 const allowedFormats = new Set([
   "JPG", "PNG", "WEBP", "AVIF", "GIF", "BMP", "TIFF", "HEIC", "ICO", "SVG", "PDF", "EPS",
   "MP4", "WEBM", "MOV", "MKV", "AVI", "M4V", "FLV",
-  "MP3", "WAV", "FLAC", "AAC", "OGG", "OGA", "M4A", "M4R", "OPUS", "WMA", "AIFF", "AIF", "MID", "MIDI", "AMR", "MP2", "AC3", "GSM", "CAF", "VOC", "WV", "AU", "DTS", "W64", "TTA", "8SVX", "IMA", "SPH", "RA", "SPX", "CDDA",
+  "MP3", "WAV", "FLAC", "AAC", "OGG", "OGA", "M4A", "M4R", "OPUS", "WMA", "AIFF", "AIF", "AMR", "MP2", "AC3", "GSM", "CAF", "VOC", "WV", "AU", "DTS", "W64", "TTA", "8SVX", "IMA", "SPH", "RA", "SPX",
   "DOC", "DOCX", "ODT", "RTF", "TXT", "HTML", "MD", "EPUB", "CSV", "XLSX", "JSON", "XML", "YAML",
   "ZIP", "7Z", "TAR", "TAR.GZ", "TGZ", "GZ", "BZ2", "XZ",
 ]);
@@ -534,15 +534,19 @@ const FORMATS_REQUIRE_8KHZ = new Set(["GSM"]);
 // Formatos que requieren 16000 Hz
 const FORMATS_REQUIRE_16KHZ = new Set(["SPX"]);
 
-// Mapeo de extensiones especiales a nombres de muxer/códec de FFmpeg
-// Algunos formatos no se pueden escribir como extensión de archivo directamente
+// Mapeo de extensiones especiales a formatos y codecs que FFmpeg soporte realmente
+// Verificado con FFmpeg 8.0.1 (Ubuntu)
 const FFMPEG_FORMAT_OVERRIDES = {
-  "8SVX":  { format: "8svx",      codec: "pcm_u8" },
-  "IMA":   { format: "ima_adpcm", codec: "adpcm_ima_wav" },
+  // 8SVX: no hay muxer nativo en FFmpeg 8.0, usamos WAV con PCM 8-bit unsigned
+  "8SVX":  { format: "wav",       codec: "pcm_u8" },
+  // IMA ADPCM: se escribe como WAV con codec ADPCM IMA
+  "IMA":   { format: "wav",       codec: "adpcm_ima_wav" },
+  // NIST SPHERE
   "SPH":   { format: "nistsphere", codec: "pcm_s16le" },
-  "MIDI":  { format: "midi",      codec: null },
-  "MID":   { format: "midi",      codec: null },
-  "CDDA":  { format: "cdda",      codec: "pcm_s16le" },
+  // MIDI/MID: FFmpeg 8.0 no tiene muxer MIDI, solo demuxer
+  // "MIDI": { format: "midi", codec: null },
+  // CDDA: no hay muxer CDDA en esta versión
+  // "CDDA": { format: "cdda", codec: "pcm_s16le" },
 };
 
 // Añade un timeout explícito para que FFmpeg no deje colgado el servidor
@@ -572,7 +576,7 @@ async function convertMedia(inputPath, outputPath) {
     args.push("-codec:a", "real_144"); // RealAudio 14.4
   }
 
-  // Para 8SVX, forzamos a 8-bit mono
+  // Para 8SVX, forzamos a 8-bit mono 8000Hz
   if (ext === "8SVX") {
     args.push("-ac", "1");
     args.push("-ar", "8000");
@@ -587,8 +591,6 @@ async function convertMedia(inputPath, outputPath) {
     }
     // Usar -f para forzar el nombre de formato que FFmpeg reconoce
     args.push("-f", override.format);
-    // La salida debe ser un nombre de archivo (extensión puede ser cualquiera)
-    // Pero necesitamos mantener outputPath como referencia
   }
 
   args.push(outputPath);
