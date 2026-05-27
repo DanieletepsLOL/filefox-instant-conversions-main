@@ -531,8 +531,19 @@ async function convertImage(inputPath, outputPath, targetFormat, fileSize, origi
 // Formatos que requieren 8000 Hz forzosamente
 const FORMATS_REQUIRE_8KHZ = new Set(["GSM"]);
 
-// Formato que requieren 16000 Hz
+// Formatos que requieren 16000 Hz
 const FORMATS_REQUIRE_16KHZ = new Set(["SPX"]);
+
+// Mapeo de extensiones especiales a nombres de muxer/códec de FFmpeg
+// Algunos formatos no se pueden escribir como extensión de archivo directamente
+const FFMPEG_FORMAT_OVERRIDES = {
+  "8SVX":  { format: "8svx",      codec: "pcm_u8" },
+  "IMA":   { format: "ima_adpcm", codec: "adpcm_ima_wav" },
+  "SPH":   { format: "nistsphere", codec: "pcm_s16le" },
+  "MIDI":  { format: "midi",      codec: null },
+  "MID":   { format: "midi",      codec: null },
+  "CDDA":  { format: "cdda",      codec: "pcm_s16le" },
+};
 
 // Añade un timeout explícito para que FFmpeg no deje colgado el servidor
 async function convertMedia(inputPath, outputPath) {
@@ -544,13 +555,14 @@ async function convertMedia(inputPath, outputPath) {
     "-i", inputPath,
   ];
 
+  // Re-muestreo forzado para formatos que lo requieren
   if (FORMATS_REQUIRE_8KHZ.has(ext)) {
     args.push("-ar", "8000");        // GSM requiere 8000 Hz
   } else if (FORMATS_REQUIRE_16KHZ.has(ext)) {
     args.push("-ar", "16000");       // Speex requiere 16000 Hz
   }
 
-  // Forzar codec de audio explícito para formatos problemáticos
+  // Codec específico para formatos problemáticos
   if (ext === "GSM") {
     args.push("-ac", "1");           // GSM es mono
     args.push("-codec:a", "libgsm");
@@ -558,6 +570,25 @@ async function convertMedia(inputPath, outputPath) {
     args.push("-codec:a", "libspeex");
   } else if (ext === "RA") {
     args.push("-codec:a", "real_144"); // RealAudio 14.4
+  }
+
+  // Para 8SVX, forzamos a 8-bit mono
+  if (ext === "8SVX") {
+    args.push("-ac", "1");
+    args.push("-ar", "8000");
+    args.push("-codec:a", "pcm_u8");
+  }
+
+  // Verificar si necesitamos un formato/muxer especial (no solo extensión)
+  const override = FFMPEG_FORMAT_OVERRIDES[ext];
+  if (override) {
+    if (override.codec) {
+      args.push("-codec:a", override.codec);
+    }
+    // Usar -f para forzar el nombre de formato que FFmpeg reconoce
+    args.push("-f", override.format);
+    // La salida debe ser un nombre de archivo (extensión puede ser cualquiera)
+    // Pero necesitamos mantener outputPath como referencia
   }
 
   args.push(outputPath);
