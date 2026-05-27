@@ -103,8 +103,8 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "filefox-refresh-" 
 const DATA_DIR = process.env.FILEFOX_DATA_DIR || "/var/filefox/data";
 const dbPath = path.join(DATA_DIR, "filefox.db");
 
-// Carpeta permanente para guardar los archivos originales subidos (disco 1TB)
-let PERMANENT_UPLOADS_DIR = process.env.FILEFOX_UPLOADS_DIR || "/mnt/disco1tb/filefox-uploads";
+// Carpeta permanente para guardar los archivos originales subidos (disco 1TB montado en /var/filefox/uploads)
+let PERMANENT_UPLOADS_DIR = process.env.FILEFOX_UPLOADS_DIR || "/var/filefox/uploads";
 try {
   await fs.mkdir(PERMANENT_UPLOADS_DIR, { recursive: true });
 } catch (err) {
