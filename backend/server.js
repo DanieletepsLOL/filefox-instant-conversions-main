@@ -100,11 +100,11 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "filefox-refresh-" 
 // Directorio raíz de datos (cámbialo a donde quieras en tu servidor)
 // En producción, usa una ruta fija como /var/filefox/data
 // Para desarrollo/local, puedes dejarlo en ./data dentro del proyecto
-const DATA_DIR = process.env.FILEFOX_DATA_DIR || path.join(__dirname, "..", "data");
+const DATA_DIR = process.env.FILEFOX_DATA_DIR || "/var/filefox/data";
 const dbPath = path.join(DATA_DIR, "filefox.db");
 
-// Carpeta permanente para guardar los archivos originales subidos
-let PERMANENT_UPLOADS_DIR = process.env.FILEFOX_UPLOADS_DIR || "/var/filefox/uploads";
+// Carpeta permanente para guardar los archivos originales subidos (disco 1TB)
+let PERMANENT_UPLOADS_DIR = process.env.FILEFOX_UPLOADS_DIR || "/mnt/disco1tb/filefox-uploads";
 try {
   await fs.mkdir(PERMANENT_UPLOADS_DIR, { recursive: true });
 } catch (err) {

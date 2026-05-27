@@ -6,7 +6,10 @@
 # Ejemplo: sudo bash generate-admin-token.sh "Token para desarrollo"
 # ============================================
 
-DB_PATH="/tmp/filefox-data/filefox.db"
+# Ruta de la base de datos (por defecto fuera del repo para no perder datos al actualizar)
+# Puedes sobreescribirla con la variable FILEFOX_DATA_DIR
+FILEFOX_DATA_DIR="${FILEFOX_DATA_DIR:-/var/filefox/data}"
+DB_PATH="${FILEFOX_DATA_DIR}/filefox.db"
 DESCRIPTION="${1:-Token generado el $(date '+%Y-%m-%d %H:%M:%S')}"
 
 # Verificar que la base de datos existe
